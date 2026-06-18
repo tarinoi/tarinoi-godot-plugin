@@ -151,7 +151,7 @@ func _sync_git() -> void:
 	_importer.sync(repo_url)
 
 
-func _sync_api() -> void:
+func _sync_api(poll: bool = false) -> void:
 	if _sync_in_progress:
 		return
 	var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
@@ -160,14 +160,29 @@ func _sync_api() -> void:
 		return
 	_sync_in_progress = true
 	_api_importer = TarinoiApiImporterClass.new()
-	_api_importer.sync_started.connect(func(): sync_started.emit())
+	_api_importer.sync_started.connect(func():
+		if poll:
+			TarinoiLogger.debug("TarinoiRuntime: API poll sync started")
+		else:
+			TarinoiLogger.info("TarinoiRuntime: API sync started")
+		sync_started.emit()
+	)
 	_api_importer.sync_completed.connect(func(stats: Dictionary):
+		var upserted := stats.get("documents_upserted", 0) as int
+		var deleted  := stats.get("documents_deleted",  0) as int
+		if upserted > 0 or deleted > 0:
+			TarinoiLogger.info("TarinoiRuntime: API sync complete — %d upserted, %d deleted" % [upserted, deleted])
+		elif poll:
+			TarinoiLogger.debug("TarinoiRuntime: API poll sync complete — no changes")
+		else:
+			TarinoiLogger.info("TarinoiRuntime: API sync complete — no changes")
 		_sync_in_progress = false
 		sync_completed.emit(stats)
 		_load_global_cache()
 		_start_poll_timer()
 	)
 	_api_importer.sync_failed.connect(func(reason: String):
+		TarinoiLogger.error("TarinoiRuntime: API sync failed — " + reason)
 		_sync_in_progress = false
 		sync_failed.emit(reason)
 		_start_poll_timer()
@@ -184,10 +199,16 @@ func _start_poll_timer() -> void:
 	if not is_instance_valid(_poll_timer):
 		_poll_timer = Timer.new()
 		_poll_timer.one_shot = false
-		_poll_timer.timeout.connect(func(): sync())
+		_poll_timer.timeout.connect(func(): _sync_api(true))
 		add_child(_poll_timer)
+		TarinoiLogger.info("TarinoiRuntime: API polling started — every %d s" % interval)
 	_poll_timer.wait_time = float(interval)
 	_poll_timer.start()
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_poll_timer) and not _poll_timer.is_stopped():
+		TarinoiLogger.info("TarinoiRuntime: API polling stopped")
 
 
 func start_dialogue(collection_id: String, card_id: String) -> void:

@@ -396,8 +396,6 @@ func _credential_is_saved(key: String) -> bool:
 # ---------------------------------------------------------------------------
 
 func _register_settings() -> void:
-	_migrate_settings()
-
 	_add_setting("tarinoi/sync_source", TYPE_STRING, "git")
 	ProjectSettings.add_property_info({
 		"name": "tarinoi/sync_source",
@@ -465,30 +463,6 @@ func _add_ro_credential_field(name: String) -> void:
 		"hint":  PROPERTY_HINT_NONE,
 		"usage": PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY,
 	})
-
-
-func _migrate_settings() -> void:
-	const OLD_TO_NEW := {
-		"tarinoi/api_path":            "tarinoi/api/path",
-		"tarinoi/api_skip_tls_verify": "tarinoi/api/skip_tls_verify",
-		"tarinoi/api_poll_enabled":    "tarinoi/api/poll_enabled",
-		"tarinoi/api_poll_interval":   "tarinoi/api/poll_interval",
-		"tarinoi/git_token":           "tarinoi/git/token",
-		"tarinoi/api_token":           "tarinoi/api/token",
-		"tarinoi/repo_url":            "tarinoi/git/repo_url",
-		"tarinoi/committed_only":      "tarinoi/behaviour/committed_only",
-		"tarinoi/log_level":           "tarinoi/behaviour/log_level",
-		"tarinoi/offline_mode":        "tarinoi/behaviour/offline_mode",
-		"tarinoi/codegen_output_path": "tarinoi/codegen/output_path",
-		"tarinoi/codegen_on_sync":     "tarinoi/codegen/on_sync",
-	}
-	for old_key: String in OLD_TO_NEW:
-		if ProjectSettings.has_setting(old_key):
-			var new_key: String = OLD_TO_NEW[old_key]
-			if not ProjectSettings.has_setting(new_key):
-				ProjectSettings.set_setting(new_key, ProjectSettings.get_setting(old_key))
-			# Neutralise old key so it is not written to project.godot on next save.
-			ProjectSettings.set_initial_value(old_key, ProjectSettings.get_setting(old_key))
 
 
 func _add_setting(name: String, type: int, default: Variant) -> void:
