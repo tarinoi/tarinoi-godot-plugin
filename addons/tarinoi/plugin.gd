@@ -283,7 +283,7 @@ func _show_credential_dialog(title: String, prompt_new: String, prompt_existing:
 		placeholder: String, cred_key: String) -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.title = title
-	dialog.min_size = Vector2i(400, 0)
+	dialog.min_size = Vector2i(620, 0)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)

@@ -82,11 +82,18 @@ func configure(repo_url: String = "") -> void:
 			var url := repo_url if not repo_url.is_empty() \
 				else ProjectSettings.get_setting("tarinoi/repo_url", "") as String
 			_project_id = _slug_from_url(url)
+			# If still empty and api_path is set, derive project_id from it.
+			# Happens when sync_source is left at "git" but only API is configured.
+			if _project_id.is_empty():
+				var api_path := ProjectSettings.get_setting("tarinoi/api_path", "") as String
+				if not api_path.is_empty():
+					TarinoiLogger.warn("TarinoiRuntime: repo_url not set; deriving project_id from api_path. Set tarinoi/sync_source to 'api' in Project Settings.")
+					_project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
 	else:
 		_project_id = _slug_from_url(repo_url)
 
 	if _project_id.is_empty():
-		TarinoiLogger.error("TarinoiRuntime: cannot derive project_id")
+		TarinoiLogger.error("TarinoiRuntime: cannot derive project_id — set tarinoi/sync_source and either tarinoi/repo_url or tarinoi/api_path in Project Settings")
 		return
 	if _is_offline():
 		_seed_db_from_bundle(_project_id)
@@ -118,6 +125,13 @@ func sync() -> void:
 	if sync_source == "api":
 		_sync_api()
 	else:
+		var repo_url := ProjectSettings.get_setting("tarinoi/repo_url", "") as String
+		if repo_url.is_empty():
+			var api_path := ProjectSettings.get_setting("tarinoi/api_path", "") as String
+			if not api_path.is_empty():
+				TarinoiLogger.warn("TarinoiRuntime: sync_source='git' but repo_url is not set; switching to API sync. Set tarinoi/sync_source to 'api' in Project Settings.")
+				_sync_api()
+				return
 		_sync_git()
 
 
