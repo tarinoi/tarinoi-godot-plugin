@@ -283,24 +283,16 @@ func _show_credential_dialog(title: String, prompt_new: String, prompt_existing:
 		placeholder: String, cred_key: String) -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.title = title
-	dialog.min_size = Vector2i(620, 0)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
 
 	var has_key := _credential_is_saved(cred_key)
-	var status := Label.new()
-	status.text = prompt_existing if has_key else prompt_new
-	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(status)
+	dialog.dialog_text = prompt_existing if has_key else prompt_new
 
 	var input := LineEdit.new()
 	input.secret = true
 	input.placeholder_text = placeholder
-	input.custom_minimum_size = Vector2i(0, 30)
-	vbox.add_child(input)
+	input.custom_minimum_size = Vector2i(520, 32)
+	dialog.add_child(input)
 
-	dialog.add_child(vbox)
 	EditorInterface.get_base_control().add_child(dialog)
 	dialog.popup_centered()
 
