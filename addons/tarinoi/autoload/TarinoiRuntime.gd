@@ -72,7 +72,7 @@ func configure(repo_url: String = "") -> void:
 	var sync_source := ProjectSettings.get_setting("tarinoi/sync_source", "git") as String
 	if repo_url.is_empty() or sync_source == "api":
 		if sync_source == "api":
-			var api_path := ProjectSettings.get_setting("tarinoi/api_path", "") as String
+			var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
 			if api_path.is_empty():
 				TarinoiLogger.error("TarinoiRuntime: tarinoi/api_path not set in ProjectSettings")
 				return
@@ -80,12 +80,12 @@ func configure(repo_url: String = "") -> void:
 			_project_id = stripped.get_file()
 		else:
 			var url := repo_url if not repo_url.is_empty() \
-				else ProjectSettings.get_setting("tarinoi/repo_url", "") as String
+				else ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
 			_project_id = _slug_from_url(url)
 			# If still empty and api_path is set, derive project_id from it.
 			# Happens when sync_source is left at "git" but only API is configured.
 			if _project_id.is_empty():
-				var api_path := ProjectSettings.get_setting("tarinoi/api_path", "") as String
+				var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
 				if not api_path.is_empty():
 					TarinoiLogger.warn("TarinoiRuntime: repo_url not set; deriving project_id from api_path. Set tarinoi/sync_source to 'api' in Project Settings.")
 					_project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
@@ -125,9 +125,9 @@ func sync() -> void:
 	if sync_source == "api":
 		_sync_api()
 	else:
-		var repo_url := ProjectSettings.get_setting("tarinoi/repo_url", "") as String
+		var repo_url := ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
 		if repo_url.is_empty():
-			var api_path := ProjectSettings.get_setting("tarinoi/api_path", "") as String
+			var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
 			if not api_path.is_empty():
 				TarinoiLogger.warn("TarinoiRuntime: sync_source='git' but repo_url is not set; switching to API sync. Set tarinoi/sync_source to 'api' in Project Settings.")
 				_sync_api()
@@ -136,7 +136,7 @@ func sync() -> void:
 
 
 func _sync_git() -> void:
-	var repo_url := ProjectSettings.get_setting("tarinoi/repo_url", "") as String
+	var repo_url := ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
 	if repo_url.is_empty():
 		TarinoiLogger.error("TarinoiRuntime: tarinoi/repo_url not set in ProjectSettings")
 		return
@@ -154,7 +154,7 @@ func _sync_git() -> void:
 func _sync_api() -> void:
 	if _sync_in_progress:
 		return
-	var api_path := ProjectSettings.get_setting("tarinoi/api_path", "") as String
+	var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
 	if api_path.is_empty():
 		TarinoiLogger.error("TarinoiRuntime: tarinoi/api_path not set in ProjectSettings")
 		return
@@ -177,8 +177,8 @@ func _sync_api() -> void:
 
 
 func _start_poll_timer() -> void:
-	var poll_enabled := ProjectSettings.get_setting("tarinoi/api_poll_enabled", false) as bool
-	var interval     := ProjectSettings.get_setting("tarinoi/api_poll_interval", 10) as int
+	var poll_enabled := ProjectSettings.get_setting("tarinoi/api/poll_enabled", false) as bool
+	var interval     := ProjectSettings.get_setting("tarinoi/api/poll_interval", 10) as int
 	if not poll_enabled or interval <= 0:
 		return
 	if not is_instance_valid(_poll_timer):
@@ -827,7 +827,7 @@ func _slug_from_url(repo_url: String) -> String:
 
 
 func _is_offline() -> bool:
-	return ProjectSettings.get_setting("tarinoi/offline_mode", false) \
+	return ProjectSettings.get_setting("tarinoi/behaviour/offline_mode", false) \
 		or OS.has_feature("tarinoi_offline")
 
 

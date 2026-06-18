@@ -88,7 +88,7 @@ func _do_sync(api_path: String) -> Dictionary:
 
 func _run_sync(api_path: String, api_key: String, start_cursor: String, db: TarinoiDB) -> Dictionary:
 	var stats := _empty_stats()
-	var skip_tls: bool = ProjectSettings.get_setting("tarinoi/api_skip_tls_verify", false)
+	var skip_tls: bool = ProjectSettings.get_setting("tarinoi/api/skip_tls_verify", false)
 
 	var parsed_url := _parse_url(api_path)
 	if parsed_url.is_empty():

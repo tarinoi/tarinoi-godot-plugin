@@ -31,7 +31,7 @@ func run(db: TarinoiDB) -> bool:
 	var ents   := _load_entities()
 
 	var output_path: String = ProjectSettings.get_setting(
-		"tarinoi/codegen_output_path", "res://demo/bindings/generated/")
+		"tarinoi/codegen/output_path", "res://bindings/generated/")
 	if not output_path.ends_with("/"):
 		output_path += "/"
 
@@ -62,7 +62,7 @@ func validate_only(db: TarinoiDB) -> void:
 	var fns  := _load_functions()
 	var vars := _load_variables()
 	var output_path: String = ProjectSettings.get_setting(
-		"tarinoi/codegen_output_path", "res://demo/bindings/generated/")
+		"tarinoi/codegen/output_path", "res://bindings/generated/")
 	if not output_path.ends_with("/"):
 		output_path += "/"
 
@@ -397,7 +397,7 @@ func _write_file(res_path: String, content: String) -> void:
 
 
 func _make_header() -> String:
-	var repo_url: String = ProjectSettings.get_setting("tarinoi/repo_url", "")
+	var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 	var commit: String = _db.read_meta("last_synced_commit")
 	var ts := Time.get_datetime_string_from_system(false, true)
 	return (

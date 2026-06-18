@@ -2,7 +2,7 @@ class_name TarinoiLogger
 
 enum Level { DEBUG = 0, INFO = 1, WARN = 2, ERROR = 3, OFF = 4 }
 
-const _SETTING = "tarinoi/log_level"
+const _SETTING = "tarinoi/behaviour/log_level"
 
 # BBCode color tags for DEBUG and INFO — printed via print_rich().
 # WARN and ERROR use push_warning/push_error (Godot colors them in Output + Debugger).

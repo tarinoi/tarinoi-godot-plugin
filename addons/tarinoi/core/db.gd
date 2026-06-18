@@ -77,7 +77,7 @@ func write_meta(key: String, value: String) -> void:
 # ---------------------------------------------------------------------------
 
 func active_filter() -> String:
-	var committed_only: bool = ProjectSettings.get_setting("tarinoi/committed_only", false)
+	var committed_only: bool = ProjectSettings.get_setting("tarinoi/behaviour/committed_only", false)
 	var sync_source: String  = ProjectSettings.get_setting("tarinoi/sync_source", "git")
 	if sync_source != "api" or committed_only:
 		var layer_clause := "d.layer_id = 'tarinoi:main-project-layer' AND " if committed_only else ""

@@ -108,7 +108,7 @@ func _on_sync_pressed() -> void:
 
 
 func _do_git_sync() -> void:
-	var repo_url: String = ProjectSettings.get_setting("tarinoi/repo_url", "")
+	var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 	if repo_url.is_empty():
 		push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
 		return
@@ -117,7 +117,7 @@ func _do_git_sync() -> void:
 	_importer.sync_progress.connect(func(msg, _f): print("Tarinoi: ", msg))
 	_importer.sync_completed.connect(func(stats: Dictionary):
 		print("Tarinoi: sync complete — ", stats)
-		if ProjectSettings.get_setting("tarinoi/codegen_on_sync", false):
+		if ProjectSettings.get_setting("tarinoi/codegen/on_sync", false):
 			var db := _open_db()
 			if db:
 				TarinoiCodegen.new().run(db)
@@ -128,7 +128,7 @@ func _do_git_sync() -> void:
 
 
 func _do_api_sync() -> void:
-	var api_path: String = ProjectSettings.get_setting("tarinoi/api_path", "")
+	var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 	if api_path.is_empty():
 		push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
 		return
@@ -137,7 +137,7 @@ func _do_api_sync() -> void:
 	_api_importer.sync_progress.connect(func(msg, _f): print("Tarinoi: ", msg))
 	_api_importer.sync_completed.connect(func(stats: Dictionary):
 		print("Tarinoi: API sync complete — ", stats)
-		if ProjectSettings.get_setting("tarinoi/codegen_on_sync", false):
+		if ProjectSettings.get_setting("tarinoi/codegen/on_sync", false):
 			var db := _open_db()
 			if db:
 				TarinoiCodegen.new().run(db)
@@ -155,13 +155,13 @@ func _on_snapshot_pressed() -> void:
 	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
 	var project_id: String
 	if sync_source == "api":
-		var api_path: String = ProjectSettings.get_setting("tarinoi/api_path", "")
+		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 		if api_path.is_empty():
 			push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
 			return
 		project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
 	else:
-		var repo_url: String = ProjectSettings.get_setting("tarinoi/repo_url", "")
+		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 		if repo_url.is_empty():
 			push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
 			return
@@ -228,14 +228,14 @@ func _open_db() -> TarinoiDB:
 	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
 	var project_id: String
 	if sync_source == "api":
-		var api_path: String = ProjectSettings.get_setting("tarinoi/api_path", "")
+		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 		if api_path.is_empty():
 			push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
 			return null
 		var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
 		project_id = stripped.get_file()
 	else:
-		var repo_url: String = ProjectSettings.get_setting("tarinoi/repo_url", "")
+		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 		if repo_url.is_empty():
 			push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
 			return null
@@ -314,14 +314,14 @@ func _on_clear_data_pressed() -> void:
 	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
 	var project_id: String
 	if sync_source == "api":
-		var api_path: String = ProjectSettings.get_setting("tarinoi/api_path", "")
+		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 		if api_path.is_empty():
 			push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
 			return
 		var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
 		project_id = stripped.get_file()
 	else:
-		var repo_url: String = ProjectSettings.get_setting("tarinoi/repo_url", "")
+		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 		if repo_url.is_empty():
 			push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
 			return
@@ -396,51 +396,51 @@ func _credential_is_saved(key: String) -> bool:
 # ---------------------------------------------------------------------------
 
 func _register_settings() -> void:
-	_add_setting("tarinoi/repo_url",             TYPE_STRING, "")
-	_add_setting("tarinoi/auto_sync",            TYPE_BOOL,   false)
-	_add_setting("tarinoi/sync_source",          TYPE_STRING, "git")
+	_migrate_settings()
+
+	_add_setting("tarinoi/sync_source", TYPE_STRING, "git")
 	ProjectSettings.add_property_info({
 		"name": "tarinoi/sync_source",
 		"type": TYPE_STRING,
 		"hint": PROPERTY_HINT_ENUM,
 		"hint_string": "git,api",
 	})
-	_add_setting("tarinoi/api_path",             TYPE_STRING, "")
-	_add_setting("tarinoi/committed_only",       TYPE_BOOL,   false)
-	_add_setting("tarinoi/api_skip_tls_verify",  TYPE_BOOL,   false)
-	_add_setting("tarinoi/api_poll_enabled",     TYPE_BOOL,   false)
-	_add_setting("tarinoi/api_poll_interval",    TYPE_INT,    10)
-	_add_setting("tarinoi/demo_collection_id",   TYPE_STRING, "")
-	_add_setting("tarinoi/demo_start_card_id",   TYPE_STRING, "")
-	_add_setting("tarinoi/codegen_output_path",  TYPE_STRING, "res://demo/bindings/generated/")
-	_add_setting("tarinoi/codegen_on_sync",      TYPE_BOOL,   false)
-	_add_setting("tarinoi/offline_mode",         TYPE_BOOL,   false)
-	_add_setting("tarinoi/log_level",            TYPE_INT,    TarinoiLogger.Level.INFO)
-	_add_setting("tarinoi/data_provider",        TYPE_STRING, "")
+
+	# API sync
+	_add_setting("tarinoi/api/path",            TYPE_STRING, "")
+	_add_ro_credential_field("tarinoi/api/token")
+	_add_setting("tarinoi/api/skip_tls_verify", TYPE_BOOL,   false)
+	_add_setting("tarinoi/api/poll_enabled",    TYPE_BOOL,   false)
+	_add_setting("tarinoi/api/poll_interval",   TYPE_INT,    10)
+
+	# Git sync
+	_add_setting("tarinoi/git/repo_url",        TYPE_STRING, "")
+	_add_ro_credential_field("tarinoi/git/token")
+
+	# Codegen
+	_add_setting("tarinoi/codegen/output_path", TYPE_STRING, "res://bindings/generated/")
+	_add_setting("tarinoi/codegen/on_sync",     TYPE_BOOL,   false)
+
+	# Behaviour
+	_add_setting("tarinoi/behaviour/committed_only",  TYPE_BOOL, false)
+	_add_setting("tarinoi/behaviour/log_level",       TYPE_INT,  TarinoiLogger.Level.INFO)
+	ProjectSettings.add_property_info({
+		"name":        "tarinoi/behaviour/log_level",
+		"type":        TYPE_INT,
+		"hint":        PROPERTY_HINT_ENUM,
+		"hint_string": "DEBUG:0,INFO:1,WARN:2,ERROR:3,OFF:4",
+	})
+	_add_setting("tarinoi/behaviour/offline_mode",    TYPE_BOOL, false)
+
+	# Advanced
+	_add_setting("tarinoi/data_provider", TYPE_STRING, "")
 	ProjectSettings.add_property_info({
 		"name": "tarinoi/data_provider",
 		"type": TYPE_STRING,
 		"hint": PROPERTY_HINT_FILE,
 		"hint_string": "*.gd",
 	})
-	ProjectSettings.add_property_info({
-		"name":        "tarinoi/log_level",
-		"type":        TYPE_INT,
-		"hint":        PROPERTY_HINT_ENUM,
-		"hint_string": "DEBUG:0,INFO:1,WARN:2,ERROR:3,OFF:4",
-	})
 
-	# Read-only status fields — updated dynamically; never stored in project.godot.
-	for cred_field in ["tarinoi/git_token", "tarinoi/api_token"]:
-		if not ProjectSettings.has_setting(cred_field):
-			ProjectSettings.set_setting(cred_field, "")
-		ProjectSettings.set_initial_value(cred_field, "")
-		ProjectSettings.add_property_info({
-			"name": cred_field,
-			"type": TYPE_STRING,
-			"hint": PROPERTY_HINT_NONE,
-			"usage": PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY,
-		})
 	_refresh_credential_status()
 
 
@@ -451,8 +451,44 @@ func _refresh_credential_status() -> void:
 	var api_status := "saved — change via Tools > Tarinoi: Set Tarinoi API token…" \
 		if _credential_is_saved("api_key") \
 		else "not set — use Tools > Tarinoi: Set Tarinoi API token…"
-	ProjectSettings.set_setting("tarinoi/git_token", git_status)
-	ProjectSettings.set_setting("tarinoi/api_token",  api_status)
+	ProjectSettings.set_setting("tarinoi/git/token", git_status)
+	ProjectSettings.set_setting("tarinoi/api/token",  api_status)
+
+
+func _add_ro_credential_field(name: String) -> void:
+	if not ProjectSettings.has_setting(name):
+		ProjectSettings.set_setting(name, "")
+	ProjectSettings.set_initial_value(name, "")
+	ProjectSettings.add_property_info({
+		"name":  name,
+		"type":  TYPE_STRING,
+		"hint":  PROPERTY_HINT_NONE,
+		"usage": PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY,
+	})
+
+
+func _migrate_settings() -> void:
+	const OLD_TO_NEW := {
+		"tarinoi/api_path":            "tarinoi/api/path",
+		"tarinoi/api_skip_tls_verify": "tarinoi/api/skip_tls_verify",
+		"tarinoi/api_poll_enabled":    "tarinoi/api/poll_enabled",
+		"tarinoi/api_poll_interval":   "tarinoi/api/poll_interval",
+		"tarinoi/git_token":           "tarinoi/git/token",
+		"tarinoi/api_token":           "tarinoi/api/token",
+		"tarinoi/repo_url":            "tarinoi/git/repo_url",
+		"tarinoi/committed_only":      "tarinoi/behaviour/committed_only",
+		"tarinoi/log_level":           "tarinoi/behaviour/log_level",
+		"tarinoi/offline_mode":        "tarinoi/behaviour/offline_mode",
+		"tarinoi/codegen_output_path": "tarinoi/codegen/output_path",
+		"tarinoi/codegen_on_sync":     "tarinoi/codegen/on_sync",
+	}
+	for old_key: String in OLD_TO_NEW:
+		if ProjectSettings.has_setting(old_key):
+			var new_key: String = OLD_TO_NEW[old_key]
+			if not ProjectSettings.has_setting(new_key):
+				ProjectSettings.set_setting(new_key, ProjectSettings.get_setting(old_key))
+			# Neutralise old key so it is not written to project.godot on next save.
+			ProjectSettings.set_initial_value(old_key, ProjectSettings.get_setting(old_key))
 
 
 func _add_setting(name: String, type: int, default: Variant) -> void:
