@@ -1,4 +1,4 @@
-# SPEC: Expression Parser and Binding Layer
+# Expression Parser and Binding Layer
 
 ## Responsibility
 
@@ -131,7 +131,7 @@ class ExpressionParser:
     static func parse_call(expr: String) -> Dictionary
 ```
 
-Parsing happens at import time or first access, not at every evaluation.
+Parsing happens on first access, not at every evaluation.
 Parsed ASTs are cached in memory keyed by the expression string.
 
 ---
@@ -181,59 +181,66 @@ Takes a parsed AST node, resolves references, and returns a value.
 ```gdscript
 class Dispatcher:
     var _registry: BindingRegistry
-    var _db: TarinoiDB
+    var _lists: Dictionary       # populated by set_lists() from TarinoiRuntime
 
-    # Evaluates a condition AST. Returns bool.
-    # Raises on unbound collection or unexpected return type.
-    func eval_condition(ast: Variant) -> bool
+    # Evaluates a condition expression string. Returns bool.
+    # Logs error on unbound collection; returns false as safe default.
+    func eval_condition(expr: String) -> bool
 
-    # Evaluates a call AST. Returns Variant.
-    func eval_call(ast: Dictionary) -> Variant
+    # Evaluates a function-call expression string. Returns Variant.
+    # Logs error if function not found; returns "" as safe default.
+    func eval_call(expr: String) -> Variant
 
-    # Resolves a single argument node to a Variant.
-    func resolve_arg(arg: Dictionary) -> Variant
+    # Evaluates any expression string. Returns Variant (not coerced to bool).
+    func eval_value(expr: String) -> Variant
+
+    # Returns true if the function named in a call expression is bound and callable.
+    func has_call(expr: String) -> bool
 ```
 
 ### `eval_condition` Logic
 
+The Dispatcher parses the expression string on first call and caches the AST.
+Evaluation walks the AST:
+
 ```
 null (empty condition) → return true
 bool_literal           → return value
-not                    → return !eval_condition(operand)
-and                    → return eval_condition(left) && eval_condition(right)
-                         (short-circuits: right not evaluated if left is false)
-or                     → return eval_condition(left) || eval_condition(right)
-                         (short-circuits: right not evaluated if left is true)
-call                   → return eval_call(node) cast to bool
+not                    → return !eval(operand)
+and                    → return eval(left) && eval(right)  (short-circuits)
+or                     → return eval(left) || eval(right)  (short-circuits)
+call                   → return _dispatch_fn(node) cast to bool
 ```
 
 ### `eval_call` Logic
 
 ```
-1. Look up collection impl: _registry.get_fn_impl(node.collection)
-   → error if null: "Unbound function collection: <collection>"
-2. Resolve each arg via resolve_arg()
-3. Call impl.<node.name>(resolved_args...)
-   → error if method not found: "Function not found: <collection>.<name>"
-4. Return result
+1. Parse expression string → call AST node (cached)
+2. Look up collection impl: _registry.get_fn_impl(node.collection)
+   → logs error and returns false if null
+3. Resolve each arg recursively
+4. Call impl.<node.name>(resolved_args...) via callv()
+   → logs error and returns false if method not found
+5. Return result
 ```
 
-### `resolve_arg` Logic
+### Argument resolution
 
 ```
 bool/int/float/string literal → return value directly
 Var ref  → VarRef.new(get_var_impl(collection), collection, name)
            (NOT evaluated — the function receives a proxy, not a value)
-Ent ref  → get_ent_impl(collection).get_entity(name)   → Variant
-Ls ref   → query DB for list option where key = node.key → return option_value
+Ent ref  → get_ent_impl(collection).get_entity(name) → Variant
+Ls ref   → look up key in _lists["collection/list_id"] → return option_value
+card_ref → return _context_card (the current card's full payload dict)
 ```
 
 ### Error Handling
 
-All dispatch errors are fatal at the point of occurrence. The Dispatcher
-raises errors via `push_error()` and returns a safe default (`false` for
-conditions, `""` for switch calls) so the runtime can emit a descriptive
-`dialogue_error` signal rather than crashing.
+All dispatch errors are non-fatal. The Dispatcher logs via `TarinoiLogger.error()`
+and returns a safe default (`false` for conditions, `""` for call expressions).
+The runtime continues after a dispatch error — the dialogue may be incorrect
+but will not crash.
 
 ---
 

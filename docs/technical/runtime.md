@@ -1,4 +1,4 @@
-# SPEC: Dialogue Runtime
+# Dialogue Runtime
 
 ## Responsibility
 
@@ -33,9 +33,9 @@ NPC_LINE
 FOLLOW_CONNECTIONS  ← classify outgoing connections of the card just left
   │
   ├─ no connections              → IDLE (emit dialogue_ended)
-  ├─ named pins (pass/fail/etc.) → output_selector needed
-  │       ├─ evaluated (Phase 3) → follow matching pin
-  │       └─ not evaluated       → AWAITING_PIN (emit pin_choice_needed, wait)
+  ├─ named pins (pass/fail/etc.) → output_selector evaluated if present
+  │       ├─ output_selector bound  → follow matching pin
+  │       └─ no selector / unbound  → AWAITING_PIN (emit pin_choice_needed, wait)
   ├─ single default connection   → load target card (loop back to EVALUATING)
   └─ multiple default connections → look-ahead: load all targets, filter to
                                     "line" base_ref, present as PC_CHOICE
@@ -68,7 +68,7 @@ func select_choice(index: int) -> void    # PC choices only
 func select_pin(pin_name: String) -> void # AWAITING_PIN state only
 func abort_dialogue() -> void             # resets to IDLE, emits dialogue_ended
 func get_state() -> String                # "IDLE" | "NPC_LINE" | "PC_CHOICE" | "AWAITING_PIN"
-func get_start_cards() -> Array           # [{card_id, collection_id, collection_label, priority, label}]
+func get_start_cards() -> Array           # [{card_id, collection_id, collection_label, label}]
 func post_system_line(text: String) -> void  # queue interstitial from function impl
 func eval_expression(expr: String) -> Variant
 
@@ -110,8 +110,10 @@ Emitted when an NPC card passes its input condition.
     "collection_id": String,
     "entity_ref":    String,   # entity_name of the speaker
     "entity_label":  String,   # display name resolved from entity payload
+    "line_mode":     String,   # "npc", "pc", "system", or "inherit"
     "line":          String,   # payload.data.line
-    "base_ref":      String,   # "line" (or "blank" for silent cards)
+    "base_ref":      String,   # "line" (or "" for system interstitials)
+    "template_ref":  String,   # payload.template_ref
     "data":          Dictionary  # full payload.data for custom template props
 }
 ```
@@ -139,9 +141,10 @@ passed its condition.
 ]
 ```
 
-If zero choices pass their conditions, emit `dialogue_error("No choices
-available at PC node <card_id>")` and remain in PC_CHOICE state. Game code
-can handle this (e.g. show a "..." option, skip, or end dialogue).
+If zero choices pass their conditions (and there was at least one `line`
+candidate that failed), the runtime logs an error and calls `_finish_dialogue()`,
+emitting `dialogue_ended`. Game code should treat dialogue_ended as a signal
+to clean up the UI.
 
 ### `dialogue_ended`
 
@@ -163,6 +166,7 @@ next card. Payload is the full card data of the selected choice card.
     "collection_id": String,
     "entity_ref":    String,
     "entity_label":  String,
+    "line_mode":     String,
     "line":          String,   # the choice text the player selected
     "base_ref":      String,
     "template_ref":  String,   # included here for template-driven dispatch
@@ -207,49 +211,35 @@ func abort_dialogue() -> void   # resets state machine to IDLE, emits dialogue_e
 
 ## Card Loading
 
-Cards are loaded from SQLite on a background thread.
+Cards are loaded via `TarinoiDataAccess.load_card(collection_id, card_id)`.
+The default (`TarinoiDataAccess.Sync`) runs the query synchronously on the
+main thread and returns immediately. Call sites use `await` so that custom
+async providers can be swapped in transparently; in the default implementation
+the await resolves in the same frame.
 
 ```gdscript
-# Query:
-SELECT payload FROM documents
-WHERE document_id = ?
-  AND collection_id = ?
-  AND is_tombstone = 0
-  AND is_archived = 0
-  AND is_moved = 0
+# Effective query (via active_filter()):
+SELECT payload FROM documents d
+WHERE document_id = ? AND collection_id = ? AND <active_filter()>
 ```
-
-Payload is parsed from JSON. The result is posted to the main thread via
-`call_deferred`.
-
-Entity resolution (for `entity_label` and `is_player_character`) uses a
-separate query on the entities collection, also cached in memory after first
-load per entity_name.
 
 ---
 
 ## Entity Resolution
 
+Entities are resolved from the in-memory `_entities` cache, populated at
+`_load_global_cache()` time (on `configure()` and after every sync). Resolution
+is O(1).
+
 ```gdscript
-# Query to resolve entity by entity_name:
-SELECT payload FROM documents
-WHERE collection_id IN (
-    SELECT collection_id FROM collections
-    WHERE collection_type = 'entity-collection'
-)
-AND document_type = 'entity'
-AND json_extract(payload, '$.entity_name') = ?
-AND is_tombstone = 0 AND is_archived = 0 AND is_moved = 0
-LIMIT 1
+func _resolve_entity(entity_name: String) -> Dictionary:
+    return _entities.get(entity_name, {})
 ```
 
-Cache resolved entities in a Dictionary: `entity_name → Dictionary`.
-Cache is cleared on sync.
-
 Fields used by the runtime:
-- `payload.entity_name` — canonical name, used as lookup key
-- `payload.label` (from `TPayloadBase`) — display name shown to client
-- `payload.is_player_character` — determines NPC vs PC flow
+- `identifier` — canonical name, used as lookup key
+- `label` — display name shown to client
+- `is_player_character` — determines NPC vs PC flow
 
 ---
 
@@ -307,7 +297,7 @@ else:
     # Phase 2: emit pin_choice_needed, wait for select_pin()
 ```
 
-### Output Selector (Phase 3)
+### Output Selector
 
 When a card has named output pins, `output_selector` holds a serialised
 function call expression evaluated by the Dispatcher:
@@ -363,9 +353,11 @@ traversal continues. This handles "forced" player lines.
 
 A PC entity card may have named output pins (`pass`, `fail`, etc.) instead of
 a `default` connection. These represent skill-check or branching outcomes tied
-to the choice the player just made. In Phase 3 an `output_selector` expression
-on the card resolves which pin to follow. In Phase 2, the runtime emits
-`pin_choice_needed` and waits for `select_pin(pin_name)`.
+to the choice the player just made. When an `output_selector` is present, the
+runtime evaluates it and follows the returned pin automatically. When no
+`output_selector` is set (or the named function is not bound), the runtime emits
+`pin_choice_needed` and waits for `select_pin(pin_name)` — useful for developer
+tooling and manual testing.
 
 ---
 
@@ -479,7 +471,7 @@ addon does not require a background thread for the load sizes involved
 ## Visited Card Guard (Loop Detection)
 
 ```gdscript
-var _visited_in_traversal: Dictionary = {}   # card_id → true
+var _visited: Dictionary = {}   # card_id → true
 
 # Reset at start_dialogue() and after each line_ready / choices_ready.
 # (Only reset at meaningful stops, not during silent card skipping.)

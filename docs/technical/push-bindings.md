@@ -1,4 +1,10 @@
-# SPEC: Push Bindings to Tarinoi
+# Push Bindings to Tarinoi
+
+> **Not yet implemented.** This document describes a planned feature. No
+> `push_bindings` tool menu item or write-API client exists in the current
+> plugin. The spec is retained here to capture the intended design.
+
+---
 
 ## Purpose
 

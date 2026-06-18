@@ -1,4 +1,4 @@
-# SPEC: Importer
+# Importer
 
 ## Responsibility
 
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS documents (
     is_archived     INTEGER NOT NULL DEFAULT 0,
     is_moved        INTEGER NOT NULL DEFAULT 0,
     payload         TEXT NOT NULL,          -- raw JSON string
-    PRIMARY KEY (document_id, collection_id)
+    PRIMARY KEY (document_id, collection_id, layer_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_collection

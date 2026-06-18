@@ -1,4 +1,4 @@
-# SPEC: REST API Sync
+# REST API Sync
 
 ## Purpose
 
@@ -27,12 +27,12 @@ changes appear in-game as soon as they are saved in Tarinoi.
 | Setting | Type | Default | Notes |
 |---|---|---|---|
 | `tarinoi/sync_source` | `STRING` | `"git"` | `"git"` or `"api"` |
-| `tarinoi/api_path` | `STRING` | `""` | Base path for the project, e.g. `https://tarinoi.local/k/api/v1/<groupId>/<projectId>`. Tarinoi provides a copy-paste link in the UI. |
+| `tarinoi/api_path` | `STRING` | `""` | Full documents endpoint URL, e.g. `https://tarinoi.app/k/api/v1/<groupId>/<projectId>/documents`. Tarinoi provides a copy-paste link in the project settings. |
 | `tarinoi/api_key` | `STRING` (secret) | — | Stored in `user://tarinoi/.credentials` alongside the GitLab token, as `api_key=<value>`. Never stored in `project.godot`. |
 | `tarinoi/committed_only` | `BOOL` | `false` | When true, filters out buffer layer documents at all times, regardless of sync source. Only main-layer documents are visible to the runtime. |
 
-`api_path` encodes both the host and the `groupId`/`projectId` path segments.
-The plugin appends `/documents` to form the full endpoint URL.
+`api_path` must include the `/documents` suffix — the plugin uses it verbatim
+as the base URL for paged requests.
 
 ---
 
@@ -204,21 +204,17 @@ addition to the manual sync trigger.
 
 ### Pause on inactivity
 
-Continuous polling while the developer is away wastes API calls. Godot's
-`EditorInterface` exposes `get_editor_main_screen()` and the editor emits a
-`focus_entered` / `focus_exited` signal on the main window. The plugin can
-pause the poll timer when the editor window loses focus and resume it when
-focus returns.
+> **Not yet implemented.** The current implementation uses a plain `Timer` that
+> runs continuously while the game is playing. The activity-aware pause
+> described below is a planned enhancement.
 
-If Godot's version in use does not expose a clean activity signal, the fallback
-is a simpler heuristic: the plugin restarts the timer whenever the user
-triggers a manual sync or opens the editor window, and lets it run otherwise.
-This is less precise but always correct — a few extra polls while the editor
-is backgrounded are harmless.
+Continuous polling while the developer is away wastes API calls. The planned
+implementation would monitor editor window focus (via `focus_entered` /
+`focus_exited` on the main window) and pause the poll timer when the editor
+loses focus, resuming when focus returns.
 
-The poll timer is an `EditorPlugin`-owned `Timer` node (added as a child of
-the plugin in `_enter_tree`, freed in `_exit_tree`). Timer ticks call the same
-incremental sync path used by the manual trigger.
+The poll timer is owned by `TarinoiRuntime` and drives incremental syncs
+on the same code path used by the manual trigger.
 
 ---
 
@@ -226,4 +222,4 @@ incremental sync path used by the manual trigger.
 
 Out of scope for this feature. Pushing declarations from GDScript back to
 Tarinoi via the write API is specified in
-[SPEC-PUSH-BINDINGS.md](SPEC-PUSH-BINDINGS.md).
+[push-bindings.md](push-bindings.md).

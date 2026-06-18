@@ -1,4 +1,4 @@
-# SPEC: Codegen
+# Codegen
 
 ## Responsibility
 
@@ -11,10 +11,10 @@ state and raise errors for mismatches.
 
 ## When to Run
 
-Codegen runs:
-1. Manually, via an editor button in the Tarinoi plugin panel.
-2. Automatically after a successful sync, if `tarinoi/codegen_on_sync` is
-   enabled in ProjectSettings.
+Codegen runs manually via **Tools > Tarinoi: Regenerate Bindings**.
+
+> **Not yet implemented:** automatic codegen after a successful sync
+> (`tarinoi/codegen_on_sync` setting).
 
 Codegen never runs at game runtime.
 
@@ -22,8 +22,9 @@ Codegen never runs at game runtime.
 
 ## Output Files
 
-All files are written to `res://demo/bindings/generated/` by default.
-The output path is configurable via `tarinoi/codegen_output_path`.
+Files are written to the path configured in `tarinoi/codegen_output_path`
+(default: `res://demo/bindings/generated/`). Configure this in Project Settings
+to a path appropriate for your game (e.g. `res://bindings/generated/`).
 
 | File | Contents |
 |---|---|
@@ -163,24 +164,27 @@ underscores. Class names are collection `collection_name` in PascalCase.
 ## Mismatch Validation
 
 Codegen compares the current database state against any previously generated
-files. Mismatches are raised as errors in the Godot editor Output panel and
-written to a `tarinoi_codegen.log` file in the project root.
+files. Mismatches are logged to the Godot editor Output panel via
+`push_error()` / `push_warning()`.
 
-### Mismatch Conditions
+### Mismatch Conditions (implemented)
+
+Validation currently operates at the **class/collection level** for functions
+and variables. Individual variable names and list/entity validation are not
+yet implemented.
 
 | Condition | Severity | Message |
 |---|---|---|
-| Function in DB not in generated file | ERROR | `Missing function: Checks.SkillCheck` |
-| Function in generated file not in DB | WARNING | `Obsolete function stub: Checks.OldFunction — remove from impl` |
-| Function argument count changed | ERROR | `Argument count mismatch: Checks.SkillCheck (DB: 2, generated: 3)` |
-| Function return type changed | WARNING | `Return type changed: Checks.SkillCheck (DB: bool, generated: string)` |
-| Variable in DB not in generated file | ERROR | `Missing variable: Player.health` |
-| Variable in generated file not in DB | WARNING | `Obsolete variable: Player.old_flag` |
-| List option added | WARNING | `New list option: Player.Skills.hacking — regenerate` |
-| List option removed | ERROR | `Removed list option: Player.Skills.hacking — may break references` |
-| Entity added | WARNING | `New entity: Major.new_character — regenerate` |
-| Entity removed | WARNING | `Removed entity: Major.old_character` |
-| Collection renamed | ERROR | `Collection renamed: old_name → new_name — update bindings` |
+| Function class in DB not in generated file | ERROR | `Missing function class 'Checks' — regenerate` |
+| Function in DB not in generated file | ERROR | `Missing function 'Checks.SkillCheck' — regenerate` |
+| Function argument count changed | ERROR | `Arg count mismatch 'Checks.SkillCheck': DB=2 generated=3 — regenerate` |
+| Function class in generated file not in DB | WARNING | `Obsolete function class 'Checks' — remove from impl` |
+| Function in generated file not in DB | WARNING | `Obsolete function stub 'Checks.OldFunction' — remove from impl` |
+| Variable class in DB not in generated file | ERROR | `Missing variable class 'Player' — regenerate` |
+| Variable class in generated file not in DB | WARNING | `Obsolete variable class 'Player' — remove from impl` |
+
+> **Not yet implemented:** per-variable name checks, list option changes,
+> entity changes, collection renames.
 
 ERRORs block codegen from completing (files are not written).
 WARNINGs are logged but codegen proceeds.

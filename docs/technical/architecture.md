@@ -22,28 +22,40 @@ addons/tarinoi/
         importer.gd            # Git sync + SQLite upsert
         api_importer.gd        # REST API sync (NDJSON, incremental cursor)
         db.gd                  # SQLite connection wrapper + layer-merge filter
+        data_access.gd         # Query abstractions (swappable backend)
         expression_parser.gd   # Parses Fn/Var/Ent/Ls expressions
         binding_registry.gd    # Stores collection→impl mappings
         dispatcher.gd          # Resolves + invokes bound callables
+        history_store.gd       # Visited-choice tracking interface
+        var_ref.gd             # Proxy for Var.* expression arguments
+        tarinoi_logger.gd      # Logging with verbosity levels
     codegen/
         codegen.gd             # Reads DB, emits GDScript binding stubs
+    nodes/
+        DialogueTrigger.gd     # 3D Area3D trigger node
+        DialogueTrigger2D.gd   # 2D Area2D trigger node
+        dialogue_trigger_helper.gd
+    scenes/
+        tarinoi_quickstart.tscn / .gd   # Self-contained start-card picker + dialogue feed
+        choose_start.tscn / .gd         # Start-card picker (reusable)
+        dialogue_strip.tscn / .gd       # Scrolling dialogue feed (reusable)
     schema/
         documents.sql          # SQLite CREATE TABLE statements (checked in)
-demo/
-    demo_3d.tscn / demo_3d.gd  # Main demo scene (3D world + intercom trigger)
-    demo.tscn / demo.gd        # Flat 2D demo scene (legacy)
+```
+
+Games using the plugin add their own bindings directory (generated stubs + hand-written implementations) and optionally bundle snapshot DBs for offline export:
+
+```
+your_game/
+    addons/
+        tarinoi/               # the plugin
+        godot-sqlite/          # required dependency
     bindings/
-        generated/             # Output of codegen (committed after first run)
-            tarinoi_functions.gd
-            tarinoi_variables.gd
-            tarinoi_lists.gd
-            tarinoi_entities.gd
-        impl/
-            global_functions.gd
-            global_variables.gd
-tarinoi/
-    bundled/
-        {project_id}.db        # Snapshot DB for offline/export builds (see below)
+        generated/             # output of codegen (commit this; regenerate on schema change)
+        impl/                  # hand-written implementations (never regenerated)
+    tarinoi/
+        bundled/
+            {project_id}.db    # snapshot for offline/export builds (see below)
 ```
 
 ---
@@ -95,7 +107,8 @@ tarinoi/
 ┌─────────────────────────────────────────────────────────┐
 │  Codegen  (codegen.gd)  — editor-only, not at runtime  │
 │  · reads functions/variables/lists/entities from DB     │
-│  · writes tarinoi_functions.gd etc. into demo/bindings  │
+│  · writes tarinoi_functions.gd etc. into configured     │
+│    output path (tarinoi/codegen_output_path)            │
 │  · raises errors for missing or mismatched bindings     │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -198,4 +211,4 @@ library name for each platform (macOS framework, Windows DLL, Linux SO).
 
 ## Godot Version
 
-Godot 4.6+. GDScript 2.0. Physics: Jolt. Rendering: Forward Plus.
+Godot 4.4+. GDScript 2.0.

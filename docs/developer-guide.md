@@ -166,7 +166,7 @@ Every card has a `base_ref` that identifies its built-in role:
 | `line` | — | A line of dialogue. The speaking entity is in `entity_ref`; the line text is in `data.line`. |
 | `blank` | — | A generic content card with no built-in fields. Template-defined `data` only. |
 | `media` | — | References an authoring-support asset. See §10. |
-| `jump` | true | Unconditionally transfers flow to another card. Target is in `data.target` (a card ID). |
+| `jump` | true | Unconditionally transfers flow to another card. Target collection is in `data.target_collection_id`; target card is in `data.target_card_id`. |
 | `annotation` | — | An author note. Has no output pins; never presented to the player. |
 | `backdrop` | true | A background grouping device in the authoring tool. Has no output pins. |
 
@@ -254,7 +254,7 @@ Walk the parsed expression tree:
 - **Logical node** (`&&`, `||`, `!`): evaluate operands and combine.
 - **Empty string**: return `true`.
 
-### 7.4 Function expressions in `card.data`
+### 7.5 Function expressions in `card.data`
 
 Any string value in `card.data` that matches the `Fn.*` call pattern is a **side-effect expression** — a function the runtime must call when the card is "committed to":
 
@@ -274,7 +274,7 @@ This is the standard pattern for skill-check cards that need to read their own `
 
 Return values from data function expressions are discarded. These functions are always `void` or `side-effect` from the runtime's perspective. Functions that need to influence routing should be placed in `output_selector`, not in `data`.
 
-### 7.5 Output selector
+### 7.6 Output selector
 
 When a card has an `output_selector`, evaluate it as a call expression. The return value must be a string matching one of the card's `output_pins[].name` values. Use that pin name to look up the corresponding connection and advance to the target card. If no pin name matches, treat it as an error.
 
@@ -331,34 +331,31 @@ The game engine is expected to supply its own media assets through its own pipel
 
 ## 11. Codegen
 
-The plugin's codegen phase runs at project import time and produces engine-native types from Tarinoi templates. This gives game code type-safe access to `data` fields without string key lookups at runtime.
+The Godot plugin's codegen phase (**Tools > Tarinoi: Regenerate Bindings**)
+reads function, variable, list, and entity declarations from the local SQLite
+mirror and writes four GDScript stub files into a configurable output directory.
+Game developers fill in the stubs to implement their bindings.
 
-### Typed data wrappers
+### Generated files
 
-For each card template and entity template in `templates/`, generate a class or struct whose fields correspond to the template's `props` array. Example from a `line` template in C#:
+| File | Contents |
+|------|----------|
+| `tarinoi_functions.gd` | One inner class per function collection; one method stub per declared function |
+| `tarinoi_variables.gd` | One inner class per variable collection; `get_variable` / `set_variable` stubs |
+| `tarinoi_lists.gd` | Nested const classes for all list option keys |
+| `tarinoi_entities.gd` | Const classes for all entity identifiers |
 
-```csharp
-// Generated from template "line_with_tags"
-public class LineWithTagsData {
-    public string Line { get; set; }
-    public string[] Tags { get; set; }
-}
-```
+These files are stubs — they declare the interface but leave implementations as
+`push_error()` bodies. Commit the generated files; regenerate whenever the
+Tarinoi project schema changes. Implement bindings in a separate `impl/`
+directory so regeneration never overwrites game logic.
 
-Access in game code:
+### Mismatch validation
 
-```csharp
-var d = card.Data<LineWithTagsData>();
-string text = d.Line;
-```
-
-### Avatar placeholders
-
-For each `TAvatarRef` across all entities, write `avatars/{link}.webp` if the file does not already exist. Copy the low-res Tarinoi webp as a placeholder; artists replace it with production art.
-
-### Start card index
-
-Generate a lookup table mapping a human-readable name to a `document_id`, populated from whatever naming convention the project uses (e.g. `label`, or a naming annotation if one is added in a future release). This lets game code trigger a specific dialogue without hard-coding document IDs.
+Running **Tools > Tarinoi: Validate Bindings** checks the generated files
+against the current database without writing new files. ERRORs indicate the
+files must be regenerated; WARNINGs indicate obsolete stubs. See
+[technical/codegen.md](technical/codegen.md) for details.
 
 ---
 
@@ -414,11 +411,13 @@ fn follow_pin(card, pin_name):
     return load_card(target_id)
 ```
 
-Jump cards (`base_ref: "jump"`) require special handling — follow `data.target` instead of an output pin:
+Jump cards (`base_ref: "jump"`) require special handling — follow the explicit
+target instead of an output pin:
 
 ```
 if card.payload.base_ref == "jump":
-    return load_card(card.payload.data["target"])
+    return load_card(card.payload.data["target_card_id"],
+                     card.payload.data["target_collection_id"])
 ```
 
 ---
