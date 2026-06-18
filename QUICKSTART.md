@@ -33,6 +33,8 @@ your_project/
       scenes/
 ```
 
+> **Note:** After copying the addon folder Godot will immediately try to parse the plugin scripts and report errors about `TarinoiRuntime` not being declared. This is expected — the autoload doesn't exist until the plugin is enabled in the next step.
+
 ---
 
 ## 3. Enable plugins
