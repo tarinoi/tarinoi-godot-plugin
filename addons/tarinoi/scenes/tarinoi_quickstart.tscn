@@ -1,0 +1,37 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://addons/tarinoi/scenes/tarinoi_quickstart.gd" id="1"]
+[ext_resource type="PackedScene" path="res://addons/tarinoi/scenes/choose_start.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://addons/tarinoi/scenes/dialogue_strip.tscn" id="3"]
+
+[node name="TarinoiQuickStart" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.05, 0.05, 0.08, 1.0)
+
+[node name="ChooseStart" parent="." instance=ExtResource("2")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DialogueStrip" parent="." instance=ExtResource("3")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2

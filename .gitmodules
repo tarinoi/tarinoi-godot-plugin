@@ -1,0 +1,6 @@
+[submodule "addons/godot-sqlite"]
+	path = addons/godot-sqlite
+	url = https://github.com/2shady4u/godot-sqlite
+[submodule "addons/gut"]
+	path = addons/gut
+	url = https://github.com/bitwes/Gut
