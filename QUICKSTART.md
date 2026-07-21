@@ -22,6 +22,16 @@ The plugin stores content in a local SQLite database and requires the **godot-sq
 > **System Settings > Privacy & Security** is not a reliable substitute — it
 > does not always clear the block — so use the `xattr` command instead.
 
+> **Windows only:** the downloaded zip carries a "Mark of the Web" flag, and
+> some antivirus software (including Windows Defender) will quarantine or
+> silently delete unsigned DLLs on extraction — if `addons/godot-sqlite/bin/`
+> looks empty or partial after unzipping, check **Windows Security > Virus &
+> threat protection > Protection history** for a removed item and restore it.
+> Unblock the zip *before* extracting to avoid this (`Unblock-File -Path
+> bin.zip` in PowerShell, or right-click > **Properties** > check **Unblock**
+> > **OK** in Explorer). You need `libgdsqlite.windows.template_debug.x86_64.dll`
+> at minimum to run in the editor.
+
 ---
 
 ## 2. Copy the plugin
