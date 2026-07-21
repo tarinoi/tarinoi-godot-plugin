@@ -14,6 +14,14 @@ The plugin stores content in a local SQLite database and requires the **godot-sq
 
 **From source:** copy `addons/godot-sqlite/` from this repository into your project, then download the matching platform binaries from [godot-sqlite releases](https://github.com/2shady4u/godot-sqlite/releases/tag/v4.7) and place them in `addons/godot-sqlite/bin/`.
 
+> **macOS only:** files downloaded from a browser are quarantined, so Gatekeeper
+> will block the binaries as unverified when Godot tries to load them (a series
+> of "cannot be opened because Apple could not verify..." dialogs on import).
+> Clear the quarantine flag before opening the project: `xattr -cr addons/godot-sqlite/bin/`.
+> If you already clicked through the warnings, go to **System Settings > Privacy
+> & Security**, click **Allow Anyway** for each blocked binary listed there, then
+> reopen the project and confirm the "Open Anyway" prompt for each one.
+
 ---
 
 ## 2. Copy the plugin
