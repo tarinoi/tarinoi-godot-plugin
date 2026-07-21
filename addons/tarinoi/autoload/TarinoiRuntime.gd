@@ -346,7 +346,7 @@ func _load_and_process_card(collection_id: String, card_id: String) -> void:
 
 
 func _process_card(card: Dictionary, card_id: String, collection_id: String) -> void:
-	var condition: String = card.get("input_pin", {}).get("condition", "")
+	var condition: String = _dict(card, "input_pin").get("condition", "")
 	if not condition.is_empty():
 		if "$" in condition:
 			TarinoiLogger.warn("TarinoiRuntime: unfilled template in condition '%s' [input_pin card:%s] — treating as true" % [condition, card_id])
@@ -523,7 +523,7 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 			TarinoiLogger.warn("TarinoiRuntime: non-line card %s in choice list — skipped" % cid)
 			continue
 		line_candidates += 1
-		var cond: String = ccard.get("input_pin", {}).get("condition", "")
+		var cond: String = _dict(ccard, "input_pin").get("condition", "")
 		if not cond.is_empty():
 			if "$" in cond:
 				TarinoiLogger.warn("TarinoiRuntime: unfilled template in condition '%s' [input_pin card:%s] — treating as true" % [cond, cid])
@@ -564,7 +564,7 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 	if pc_choices.is_empty() and npc_choices.size() > 1:
 		var seen_conds: Dictionary = {}
 		for choice: Dictionary in npc_choices:
-			var cond: String = (choice["card"] as Dictionary).get("input_pin", {}).get("condition", "")
+			var cond: String = _dict(choice["card"] as Dictionary, "input_pin").get("condition", "")
 			if seen_conds.has(cond):
 				TarinoiLogger.warn(
 					"TarinoiRuntime: NPC lines with duplicate/empty condition '%s' from card %s — only the first will be reached" \
@@ -598,6 +598,21 @@ func _follow_jump(card: Dictionary, card_id: String, _collection_id: String) -> 
 # Global cache (collections, entities, lists)
 # ---------------------------------------------------------------------------
 
+## Coerces a Variant to String, treating SQL NULL as "" (Dictionary.get()'s
+## default only applies when the key is absent, not when its value is null).
+static func _str(v: Variant) -> String:
+	return str(v) if v != null else ""
+
+
+## Reads a nested Dictionary field, treating a JSON `null` value the same as an
+## absent key (Dictionary.get()'s default only applies when the key is absent).
+## Card payload fields like "input_pin" are stored as explicit JSON null when
+## the pin has no condition/function calls.
+static func _dict(d: Dictionary, key: String) -> Dictionary:
+	var v: Variant = d.get(key)
+	return v as Dictionary if v is Dictionary else {}
+
+
 ## Loads all non-card global documents into memory with the two-layer merge
 ## applied.  Called at configure() time and after every sync.
 func _load_global_cache() -> void:
@@ -610,7 +625,7 @@ func _load_global_cache() -> void:
 
 	# --- Collection manifests ---
 	var col_rows := _db.query_rows(
-		"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, payload FROM documents WHERE document_type = 'collection-manifest'"
+		"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, identifier, payload FROM documents WHERE document_type = 'collection-manifest'"
 	)
 	for row in _merge_layers(col_rows):
 		var p: Variant = JSON.parse_string(row["payload"] as String)
@@ -621,6 +636,7 @@ func _load_global_cache() -> void:
 			"label":           pd.get("label", ""),
 			"collection_type": pd.get("collection_type", ""),
 			"payload":         pd,
+			"identifier":      _str(row.get("identifier", "")),
 		}
 		_cache_max_update_key = max(_cache_max_update_key, int(row.get("update_key", 0)))
 
@@ -639,18 +655,19 @@ func _load_global_cache() -> void:
 				"label":           pd.get("label", ""),
 				"collection_type": row["collection_type"] as String,
 				"payload":         pd,
+				"identifier":      _str(pd.get("identifier", "")),
 			}
 
 	# --- Entities ---
 	var ent_rows := _db.query_rows(
-		"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, payload FROM documents WHERE document_type = 'entity'"
+		"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, identifier, payload FROM documents WHERE document_type = 'entity'"
 	)
 	for row in _merge_layers(ent_rows):
 		var p: Variant = JSON.parse_string(row["payload"] as String)
 		if not p is Dictionary:
 			continue
 		var pd := p as Dictionary
-		var identifier := pd.get("identifier", "") as String
+		var identifier := _str(row.get("identifier", ""))
 		if not identifier.is_empty():
 			_entities[identifier] = pd
 		_cache_max_update_key = max(_cache_max_update_key, int(row.get("update_key", 0)))
@@ -662,7 +679,7 @@ func _load_global_cache() -> void:
 		var col := _collections[col_id] as Dictionary
 		if col.get("collection_type", "") == "list-collection":
 			var pd := col.get("payload", {}) as Dictionary
-			var col_name := pd.get("collection_name", pd.get("identifier", "")) as String
+			var col_name := pd.get("collection_name", col.get("identifier", "")) as String
 			if not col_name.is_empty():
 				list_col_map[col_id] = col_name
 
@@ -673,7 +690,7 @@ func _load_global_cache() -> void:
 		for i in ids.size():
 			marks[i] = "?"
 		var list_rows := _db.query_rows(
-			"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, payload FROM documents WHERE collection_id IN (%s)" % ",".join(marks),
+			"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, identifier, payload FROM documents WHERE collection_id IN (%s)" % ",".join(marks),
 			ids
 		)
 		for row in _merge_layers(list_rows):
@@ -682,7 +699,7 @@ func _load_global_cache() -> void:
 				continue
 			var pd := p as Dictionary
 			var col_name := list_col_map.get(row["collection_id"] as String, "") as String
-			var list_id  := pd.get("identifier", "") as String
+			var list_id  := _str(row.get("identifier", ""))
 			# list_options is the current field name; fall back to options for older data.
 			var options: Variant = pd.get("list_options", pd.get("options", []))
 			if not col_name.is_empty() and not list_id.is_empty() and options is Array:
