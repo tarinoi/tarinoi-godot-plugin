@@ -14,6 +14,7 @@ const BUF_LAYER   := "tarinoi:main-project-layer.buffer"
 const POLL_TIMEOUT_ITERS := 3000
 
 var _thread: Thread = null
+var _version_check := TarinoiDataVersion.new()
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +120,9 @@ func _run_sync(api_path: String, api_key: String, start_cursor: String, db: Tari
 		var parsed := _parse_ndjson(body)
 
 		for doc in parsed["documents"]:
+			var dv_err := _version_check.check((doc as Dictionary).get("data_version"))
+			if not dv_err.is_empty():
+				return {"error": dv_err}
 			_upsert_document_api(doc as Dictionary, db, stats)
 
 		var new_cursor: Variant = parsed["cursor"]
@@ -319,7 +323,7 @@ func _upsert_document_api(doc: Dictionary, db: TarinoiDB, stats: Dictionary) -> 
 
 	db.execute("""
 		INSERT OR REPLACE INTO documents
-		(document_id, collection_id, document_type, layer_id, namespace, slug,
+		(document_id, collection_id, document_type, layer_id, namespace, identifier,
 		 update_key, is_tombstone, is_archived, is_moved, payload)
 		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
 	""", [
@@ -328,7 +332,7 @@ func _upsert_document_api(doc: Dictionary, db: TarinoiDB, stats: Dictionary) -> 
 		doc.get("document_type", ""),
 		layer,
 		doc.get("namespace", "document"),
-		doc.get("slug"),
+		doc.get("identifier"),
 		doc.get("update_key", 0),
 		1 if is_archived else 0,
 		1 if is_moved    else 0,

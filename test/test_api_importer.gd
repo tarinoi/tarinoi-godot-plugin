@@ -23,14 +23,14 @@ func test_parse_ndjson_empty_body() -> void:
 
 
 func test_parse_ndjson_documents_only() -> void:
-	var body := '{"document_id":"a","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","slug":null,"update_key":1,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n{"document_id":"b","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","slug":null,"update_key":2,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n'
+	var body := '{"document_id":"a","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","identifier":null,"update_key":1,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n{"document_id":"b","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","identifier":null,"update_key":2,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n'
 	var result: Dictionary = _importer._parse_ndjson(body)
 	assert_eq(result["documents"].size(), 2, "two document lines parsed")
 	assert_null(result["cursor"], "no cursor present")
 
 
 func test_parse_ndjson_with_cursor() -> void:
-	var body := '{"document_id":"a","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","slug":null,"update_key":5,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n{"cursor":42}\n'
+	var body := '{"document_id":"a","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","identifier":null,"update_key":5,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n{"cursor":42}\n'
 	var result: Dictionary = _importer._parse_ndjson(body)
 	assert_eq(result["documents"].size(), 1, "one document before cursor")
 	assert_eq(result["cursor"], 42, "cursor value extracted")
@@ -43,7 +43,7 @@ func test_parse_ndjson_cursor_only() -> void:
 
 
 func test_parse_ndjson_skips_blank_lines() -> void:
-	var body := '\n{"document_id":"x","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","slug":null,"update_key":1,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n\n'
+	var body := '\n{"document_id":"x","collection_id":"c","layer_id":"tarinoi:main-project-layer","document_type":"line","namespace":"document","identifier":null,"update_key":1,"is_tombstone":false,"is_archived":false,"is_moved":false,"payload":{}}\n\n'
 	var result: Dictionary = _importer._parse_ndjson(body)
 	assert_eq(result["documents"].size(), 1, "blank lines skipped")
 
@@ -104,7 +104,7 @@ func test_active_main_layer_doc_upserted() -> void:
 	var doc := {
 		"document_id": "doc1", "collection_id": "col1",
 		"layer_id": MAIN, "document_type": "line",
-		"namespace": "document", "slug": null,
+		"namespace": "document", "identifier": null,
 		"update_key": 1, "is_tombstone": false, "is_archived": false, "is_moved": false,
 		"payload": {"line": "Hello"},
 	}
@@ -120,7 +120,7 @@ func test_inactive_main_layer_doc_deleted() -> void:
 	# First insert an active row.
 	var doc := {
 		"document_id": "doc2", "collection_id": "col1", "layer_id": MAIN,
-		"document_type": "line", "namespace": "document", "slug": null,
+		"document_type": "line", "namespace": "document", "identifier": null,
 		"update_key": 1, "is_tombstone": false, "is_archived": false, "is_moved": false,
 		"payload": {},
 	}
@@ -142,7 +142,7 @@ func test_tombstone_buffer_layer_doc_deleted() -> void:
 	var stats := {"documents_upserted": 0, "documents_deleted": 0, "collections_updated": 0, "warnings": []}
 	var doc := {
 		"document_id": "doc3", "collection_id": "col1", "layer_id": BUF,
-		"document_type": "line", "namespace": "document", "slug": null,
+		"document_type": "line", "namespace": "document", "identifier": null,
 		"update_key": 5, "is_tombstone": true, "is_archived": false, "is_moved": false,
 		"payload": {},
 	}
@@ -158,7 +158,7 @@ func test_archived_buffer_layer_doc_stored_as_suppression_marker() -> void:
 	var stats := {"documents_upserted": 0, "documents_deleted": 0, "collections_updated": 0, "warnings": []}
 	var doc := {
 		"document_id": "doc3b", "collection_id": "col1", "layer_id": BUF,
-		"document_type": "line", "namespace": "document", "slug": null,
+		"document_type": "line", "namespace": "document", "identifier": null,
 		"update_key": 6, "is_tombstone": false, "is_archived": true, "is_moved": false,
 		"payload": {},
 	}
@@ -175,13 +175,13 @@ func test_both_layers_can_coexist() -> void:
 	var stats := {"documents_upserted": 0, "documents_deleted": 0, "collections_updated": 0, "warnings": []}
 	var main_doc := {
 		"document_id": "doc4", "collection_id": "col1", "layer_id": MAIN,
-		"document_type": "line", "namespace": "document", "slug": null,
+		"document_type": "line", "namespace": "document", "identifier": null,
 		"update_key": 1, "is_tombstone": false, "is_archived": false, "is_moved": false,
 		"payload": {"line": "Main"},
 	}
 	var buf_doc := {
 		"document_id": "doc4", "collection_id": "col1", "layer_id": BUF,
-		"document_type": "line", "namespace": "document", "slug": null,
+		"document_type": "line", "namespace": "document", "identifier": null,
 		"update_key": 2, "is_tombstone": false, "is_archived": false, "is_moved": false,
 		"payload": {"line": "Buffer"},
 	}

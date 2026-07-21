@@ -9,6 +9,7 @@ signal sync_progress(message: String, fraction: float)
 const CREDENTIALS_FILE := "user://tarinoi/.credentials"
 
 var _thread: Thread = null
+var _version_check := TarinoiDataVersion.new()
 
 
 # ---------------------------------------------------------------------------
@@ -80,9 +81,12 @@ func _do_sync(repo_url: String) -> Dictionary:
 		call_deferred("emit_signal", "sync_progress", "Importing all documents…", 0.3)
 		var head_sha := _git_rev_parse(local_path, "HEAD")
 		var stats := _full_import(local_path, db)
-		if not head_sha.is_empty():
-			db.write_meta("last_synced_commit", head_sha)
-		result = {"stats": stats}
+		if stats.has("fatal_error"):
+			result = {"error": stats["fatal_error"]}
+		else:
+			if not head_sha.is_empty():
+				db.write_meta("last_synced_commit", head_sha)
+			result = {"stats": stats}
 	else:
 		call_deferred("emit_signal", "sync_progress", "Fetching changes…", 0.2)
 		result = _incremental_sync(local_path, last_sha, db)
@@ -122,6 +126,8 @@ func _incremental_sync(local_path: String, old_sha: String, db: TarinoiDB) -> Di
 	call_deferred("emit_signal", "sync_progress", "Processing %d changed file(s)…" % changed_files.size(), 0.5)
 
 	for rel_path in changed_files:
+		if stats.has("fatal_error"):
+			break
 		var filename: String = (rel_path as String).get_file()
 		var abs_path: String = local_path.path_join(rel_path)
 		if not FileAccess.file_exists(abs_path):
@@ -133,6 +139,8 @@ func _incremental_sync(local_path: String, old_sha: String, db: TarinoiDB) -> Di
 		elif filename.match("b-???.json"):
 			_import_bucket_file(abs_path, db, stats)
 
+	if stats.has("fatal_error"):
+		return {"error": stats["fatal_error"]}
 	db.write_meta("last_synced_commit", new_sha)
 	return {"stats": stats}
 
@@ -158,6 +166,8 @@ func _walk_for_collections(dir_path: String, db: TarinoiDB, stats: Dictionary) -
 	dir.list_dir_begin()
 	var entry := dir.get_next()
 	while entry != "":
+		if stats.has("fatal_error"):
+			break
 		if dir.current_is_dir() and not entry.begins_with("."):
 			_walk_for_collections(dir_path.path_join(entry), db, stats)
 		entry = dir.get_next()
@@ -171,6 +181,8 @@ func _import_collection_dir(dir_path: String, db: TarinoiDB, stats: Dictionary) 
 		return
 
 	_upsert_collection(col_data, db, stats)
+	if stats.has("fatal_error"):
+		return
 
 	var dir := DirAccess.open(dir_path)
 	if dir == null:
@@ -178,6 +190,8 @@ func _import_collection_dir(dir_path: String, db: TarinoiDB, stats: Dictionary) 
 	dir.list_dir_begin()
 	var entry := dir.get_next()
 	while entry != "":
+		if stats.has("fatal_error"):
+			break
 		if not dir.current_is_dir() and entry.match("b-???.json"):
 			_import_bucket_file(dir_path.path_join(entry), db, stats)
 		entry = dir.get_next()
@@ -190,6 +204,8 @@ func _import_bucket_file(file_path: String, db: TarinoiDB, stats: Dictionary) ->
 		stats["warnings"].append("Skipping malformed bucket file: %s" % file_path)
 		return
 	for doc in (data as Dictionary).values():
+		if stats.has("fatal_error"):
+			return
 		if doc is Dictionary:
 			_upsert_document(doc, db, stats)
 
@@ -200,6 +216,10 @@ func _import_bucket_file(file_path: String, db: TarinoiDB, stats: Dictionary) ->
 
 func _upsert_collection(data: Variant, db: TarinoiDB, stats: Dictionary) -> void:
 	if not data is Dictionary:
+		return
+	var dv_err := _version_check.check((data as Dictionary).get("data_version"))
+	if not dv_err.is_empty():
+		stats["fatal_error"] = dv_err
 		return
 	var collection_id: String = data.get("document_id", "")
 	var payload: Dictionary   = data.get("payload", {})
@@ -218,6 +238,11 @@ func _upsert_collection(data: Variant, db: TarinoiDB, stats: Dictionary) -> void
 
 
 func _upsert_document(doc: Dictionary, db: TarinoiDB, stats: Dictionary) -> void:
+	var dv_err := _version_check.check(doc.get("data_version"))
+	if not dv_err.is_empty():
+		stats["fatal_error"] = dv_err
+		return
+
 	var doc_id: String = doc.get("document_id", "")
 	var col_id: String = doc.get("collection_id", "")
 	if doc_id.is_empty() or col_id.is_empty():
@@ -237,7 +262,7 @@ func _upsert_document(doc: Dictionary, db: TarinoiDB, stats: Dictionary) -> void
 
 	db.execute("""
 		INSERT OR REPLACE INTO documents
-		(document_id, collection_id, document_type, layer_id, namespace, slug,
+		(document_id, collection_id, document_type, layer_id, namespace, identifier,
 		 update_key, is_tombstone, is_archived, is_moved, payload)
 		VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)
 	""", [
@@ -246,7 +271,7 @@ func _upsert_document(doc: Dictionary, db: TarinoiDB, stats: Dictionary) -> void
 		doc.get("document_type", ""),
 		doc.get("layer_id", ""),
 		doc.get("namespace", "document"),
-		doc.get("slug"),
+		doc.get("identifier"),
 		doc.get("update_key", 0),
 		JSON.stringify(payload),
 	])

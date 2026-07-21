@@ -81,12 +81,12 @@ func validate_only(db: TarinoiDB) -> void:
 func _load_functions() -> Dictionary:
 	# Returns { collection_name: String → Array of { name, args, returns, effect } }
 	var rows := _db.query_rows("""
-		SELECT d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
 		FROM documents d
 		JOIN collections c ON c.collection_id = d.collection_id
 		WHERE d.document_type = 'function-declaration'
 		  AND %s
-		ORDER BY col_name, json_extract(d.payload, '$.identifier')
+		ORDER BY col_name, d.identifier
 	""" % _db.active_filter())
 	var result: Dictionary = {}
 	for row: Dictionary in rows:
@@ -99,7 +99,7 @@ func _load_functions() -> Dictionary:
 		if not result.has(col):
 			result[col] = []
 		(result[col] as Array).append({
-			"name":    _str((payload as Dictionary).get("identifier", "")),
+			"name":    _str(row.get("identifier", "")),
 			"args":    (payload as Dictionary).get("function_args", []),
 			"returns": _str((payload as Dictionary).get("function_returns", "")),
 			"effect":  _str((payload as Dictionary).get("effect", "")),
@@ -110,12 +110,12 @@ func _load_functions() -> Dictionary:
 func _load_variables() -> Dictionary:
 	# Returns { collection_name → Array of { name, data_type, default_value } }
 	var rows := _db.query_rows("""
-		SELECT d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
 		FROM documents d
 		JOIN collections c ON c.collection_id = d.collection_id
 		WHERE d.document_type = 'variable-declaration'
 		  AND %s
-		ORDER BY col_name, json_extract(d.payload, '$.identifier')
+		ORDER BY col_name, d.identifier
 	""" % _db.active_filter())
 	var result: Dictionary = {}
 	for row: Dictionary in rows:
@@ -128,7 +128,7 @@ func _load_variables() -> Dictionary:
 		if not result.has(col):
 			result[col] = []
 		(result[col] as Array).append({
-			"name":          _str((payload as Dictionary).get("identifier", "")),
+			"name":          _str(row.get("identifier", "")),
 			"data_type":     _str((payload as Dictionary).get("data_type", "")),
 			"default_value": (payload as Dictionary).get("default_value", null),
 		})
@@ -138,12 +138,12 @@ func _load_variables() -> Dictionary:
 func _load_lists() -> Dictionary:
 	# Returns { collection_name → Array of { identifier, options: Array of {key, option_value} } }
 	var rows := _db.query_rows("""
-		SELECT d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
 		FROM documents d
 		JOIN collections c ON c.collection_id = d.collection_id
 		WHERE d.document_type = 'list-spec'
 		  AND %s
-		ORDER BY col_name, json_extract(d.payload, '$.identifier')
+		ORDER BY col_name, d.identifier
 	""" % _db.active_filter())
 	var result: Dictionary = {}
 	for row: Dictionary in rows:
@@ -156,7 +156,7 @@ func _load_lists() -> Dictionary:
 		if not result.has(col):
 			result[col] = []
 		(result[col] as Array).append({
-			"identifier": _str((payload as Dictionary).get("identifier", "")),
+			"identifier": _str(row.get("identifier", "")),
 			"options":   (payload as Dictionary).get("options", []),
 		})
 	return result
@@ -165,13 +165,13 @@ func _load_lists() -> Dictionary:
 func _load_entities() -> Dictionary:
 	# Returns { collection_name → Array of { identifier } }  (dialog_capable only)
 	var rows := _db.query_rows("""
-		SELECT d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
 		FROM documents d
 		JOIN collections c ON c.collection_id = d.collection_id
 		WHERE d.document_type = 'entity'
 		  AND json_extract(d.payload, '$.dialog_capable') = 1
 		  AND %s
-		ORDER BY col_name, json_extract(d.payload, '$.identifier')
+		ORDER BY col_name, d.identifier
 	""" % _db.active_filter())
 	var result: Dictionary = {}
 	for row: Dictionary in rows:
@@ -184,7 +184,7 @@ func _load_entities() -> Dictionary:
 		if not result.has(col):
 			result[col] = []
 		(result[col] as Array).append({
-			"identifier": _str((payload as Dictionary).get("identifier", "")),
+			"identifier": _str(row.get("identifier", "")),
 		})
 	return result
 

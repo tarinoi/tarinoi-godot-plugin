@@ -5,7 +5,7 @@ const DB_BASE_PATH := "user://tarinoi"
 
 # Bump this when the schema changes incompatibly. _init_schema() drops and
 # recreates affected tables when the stored version is lower than this value.
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 
 var _db: SQLite = null
 
@@ -136,7 +136,7 @@ func _init_schema() -> void:
 			document_type TEXT NOT NULL,
 			layer_id      TEXT NOT NULL,
 			namespace     TEXT NOT NULL DEFAULT 'document',
-			slug          TEXT,
+			identifier    TEXT,
 			update_key    INTEGER NOT NULL,
 			is_tombstone  INTEGER NOT NULL DEFAULT 0,
 			is_archived   INTEGER NOT NULL DEFAULT 0,
@@ -152,6 +152,10 @@ func _init_schema() -> void:
 	_db.query("""
 		CREATE INDEX IF NOT EXISTS idx_documents_update_key
 		ON documents (update_key)
+	""")
+	_db.query("""
+		CREATE INDEX IF NOT EXISTS idx_documents_identifier
+		ON documents (identifier)
 	""")
 	_db.query("""
 		CREATE TABLE IF NOT EXISTS collections (
