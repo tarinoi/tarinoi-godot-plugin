@@ -17,10 +17,10 @@ The plugin stores content in a local SQLite database and requires the **godot-sq
 > **macOS only:** files downloaded from a browser are quarantined, so Gatekeeper
 > will block the binaries as unverified when Godot tries to load them (a series
 > of "cannot be opened because Apple could not verify..." dialogs on import).
-> Clear the quarantine flag before opening the project: `xattr -cr addons/godot-sqlite/bin/`.
-> If you already clicked through the warnings, go to **System Settings > Privacy
-> & Security**, click **Allow Anyway** for each blocked binary listed there, then
-> reopen the project and confirm the "Open Anyway" prompt for each one.
+> Clear the quarantine flag *before* opening the project:
+> `xattr -cr addons/godot-sqlite/bin/`. Clicking "Allow Anyway" per binary in
+> **System Settings > Privacy & Security** is not a reliable substitute — it
+> does not always clear the block — so use the `xattr` command instead.
 
 ---
 
