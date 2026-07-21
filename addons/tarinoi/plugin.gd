@@ -457,11 +457,14 @@ func _add_ro_credential_field(name: String) -> void:
 	if not ProjectSettings.has_setting(name):
 		ProjectSettings.set_setting(name, "")
 	ProjectSettings.set_initial_value(name, "")
+	# "usage" in add_property_info() was silently dropped in Godot 4.7 — this field
+	# is no longer enforced read-only in the Project Settings UI. Harmless: it's
+	# just a status display, and _refresh_credential_status() overwrites it on
+	# every plugin reload regardless of manual edits.
 	ProjectSettings.add_property_info({
-		"name":  name,
-		"type":  TYPE_STRING,
-		"hint":  PROPERTY_HINT_NONE,
-		"usage": PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY,
+		"name": name,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_NONE,
 	})
 
 
