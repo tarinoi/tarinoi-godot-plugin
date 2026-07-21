@@ -57,7 +57,7 @@ func _on_thread_done(result: Dictionary) -> void:
 func _do_sync(api_path: String) -> Dictionary:
 	var api_key := _read_credential("api_key")
 	if api_key.is_empty():
-		return {"error": "No api_key in credentials file — use Tools > Tarinoi: Set API Key…"}
+		return {"error": "No API key saved — use Tools > Tarinoi: Set Tarinoi API token…"}
 
 	var project_id := _project_id_from_path(api_path)
 	if project_id.is_empty():
@@ -199,7 +199,7 @@ func _fetch_page(host: String, port: int, path: String, api_key: String,
 		err = client.connect_to_host(host, port)
 
 	if err != OK:
-		return {"error": "HTTPClient connect_to_host failed: error %d" % err}
+		return {"error": "Could not connect to '%s' (error %d) — check tarinoi/api/path in Project Settings > Tarinoi and your network connection" % [host, err]}
 
 	# Wait for connection (or TLS handshake)
 	var iters := 0
@@ -239,7 +239,7 @@ func _fetch_page(host: String, port: int, path: String, api_key: String,
 
 	var response_code := client.get_response_code()
 	if response_code != 200:
-		return {"error": "API returned HTTP %d for path: %s" % [response_code, path]}
+		return {"error": "%s (HTTP %d for path: %s)" % [_http_error_hint(response_code), response_code, path]}
 
 	# Read body
 	var body_bytes := PackedByteArray()
@@ -405,6 +405,19 @@ func _read_credential(key: String) -> String:
 # ---------------------------------------------------------------------------
 # Misc
 # ---------------------------------------------------------------------------
+
+## Translates a non-200 HTTP status into an actionable hint for self-diagnosis.
+func _http_error_hint(response_code: int) -> String:
+	match response_code:
+		401, 403:
+			return "API sync failed: rejected credentials — check your API token (Tools > Tarinoi: Set Tarinoi API token…)"
+		404:
+			return "API sync failed: project not found — check tarinoi/api/path in Project Settings > Tarinoi"
+		_:
+			if response_code >= 500:
+				return "API sync failed: server error — the Tarinoi API may be temporarily unavailable, try again shortly"
+			return "API sync failed: unexpected response"
+
 
 func _empty_stats() -> Dictionary:
 	return {

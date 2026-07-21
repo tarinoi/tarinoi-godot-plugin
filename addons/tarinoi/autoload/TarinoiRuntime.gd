@@ -74,7 +74,7 @@ func configure(repo_url: String = "") -> void:
 		if sync_source == "api":
 			var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
 			if api_path.is_empty():
-				TarinoiLogger.error("TarinoiRuntime: tarinoi/api_path not set in ProjectSettings")
+				TarinoiLogger.error("TarinoiRuntime: tarinoi/api/path not set in ProjectSettings — set it via Project Settings > Tarinoi, and set your API token via Tools > Tarinoi: Set Tarinoi API token…")
 				return
 			var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
 			_project_id = stripped.get_file()
@@ -93,7 +93,7 @@ func configure(repo_url: String = "") -> void:
 		_project_id = _slug_from_url(repo_url)
 
 	if _project_id.is_empty():
-		TarinoiLogger.error("TarinoiRuntime: cannot derive project_id — set tarinoi/sync_source and either tarinoi/repo_url or tarinoi/api_path in Project Settings")
+		TarinoiLogger.error("TarinoiRuntime: cannot derive project_id — set tarinoi/sync_source and either tarinoi/git/repo_url or tarinoi/api/path in Project Settings > Tarinoi")
 		return
 	if _is_offline():
 		_seed_db_from_bundle(_project_id)
@@ -138,7 +138,7 @@ func sync() -> void:
 func _sync_git() -> void:
 	var repo_url := ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
 	if repo_url.is_empty():
-		TarinoiLogger.error("TarinoiRuntime: tarinoi/repo_url not set in ProjectSettings")
+		TarinoiLogger.error("TarinoiRuntime: tarinoi/git/repo_url not set in ProjectSettings — set it via Project Settings > Tarinoi, and set your access token via Tools > Tarinoi: Set Git access token…")
 		return
 	_importer = TarinoiImporter.new()
 	_importer.sync_started.connect(func(): sync_started.emit())
@@ -156,7 +156,7 @@ func _sync_api(poll: bool = false) -> void:
 		return
 	var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
 	if api_path.is_empty():
-		TarinoiLogger.error("TarinoiRuntime: tarinoi/api_path not set in ProjectSettings")
+		TarinoiLogger.error("TarinoiRuntime: tarinoi/api/path not set in ProjectSettings — set it via Project Settings > Tarinoi, and set your API token via Tools > Tarinoi: Set Tarinoi API token…")
 		return
 	_sync_in_progress = true
 	_api_importer = TarinoiApiImporterClass.new()

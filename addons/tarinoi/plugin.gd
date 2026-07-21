@@ -110,7 +110,7 @@ func _on_sync_pressed() -> void:
 func _do_git_sync() -> void:
 	var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 	if repo_url.is_empty():
-		push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
+		push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
 		return
 	_importer = TarinoiImporter.new()
 	_importer.sync_started.connect(func(): print("Tarinoi: sync started…"))
@@ -130,7 +130,7 @@ func _do_git_sync() -> void:
 func _do_api_sync() -> void:
 	var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 	if api_path.is_empty():
-		push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
+		push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
 		return
 	_api_importer = TarinoiApiImporter.new()
 	_api_importer.sync_started.connect(func(): print("Tarinoi: API sync started…"))
@@ -157,13 +157,13 @@ func _on_snapshot_pressed() -> void:
 	if sync_source == "api":
 		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 		if api_path.is_empty():
-			push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
+			push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
 			return
 		project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
 	else:
 		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 		if repo_url.is_empty():
-			push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
+			push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
 			return
 		project_id = repo_url.get_file().trim_suffix(".git")
 	if project_id.is_empty():
@@ -230,14 +230,14 @@ func _open_db() -> TarinoiDB:
 	if sync_source == "api":
 		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 		if api_path.is_empty():
-			push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
+			push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
 			return null
 		var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
 		project_id = stripped.get_file()
 	else:
 		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 		if repo_url.is_empty():
-			push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
+			push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
 			return null
 		project_id = repo_url.get_file().trim_suffix(".git")
 
@@ -316,14 +316,14 @@ func _on_clear_data_pressed() -> void:
 	if sync_source == "api":
 		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 		if api_path.is_empty():
-			push_error("Tarinoi: set tarinoi/api_path in Project Settings first")
+			push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
 			return
 		var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
 		project_id = stripped.get_file()
 	else:
 		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
 		if repo_url.is_empty():
-			push_error("Tarinoi: set tarinoi/repo_url in Project Settings first")
+			push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
 			return
 		project_id = repo_url.get_file().trim_suffix(".git")
 
