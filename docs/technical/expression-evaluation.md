@@ -316,10 +316,16 @@ class GameVariables:
         ...
 ```
 
-Variable collections do not have per-variable methods. All reads and writes
-go through `get_variable` / `set_variable` with the variable name as a string
-argument. The game's variable store (savegame system, blackboard, etc.)
-handles the actual storage.
+All Dispatcher reads and writes go through `get_variable` / `set_variable`
+with the variable name as a string argument, since the Dispatcher only has
+variable names as runtime strings parsed from expressions. The recommended
+implementation extends the codegen-generated base class (`TarinoiVariables.*`,
+see [codegen.md](codegen.md)), which declares one typed `var` field per
+variable and implements `get_variable`/`set_variable` via `get()`/`set()`
+reflection over those fields — a pass-through implementation needs no code at
+all. Collections with a custom backing store (savegame system, blackboard)
+override `get_variable`/`set_variable` directly and call `super` for the
+variables they don't special-case.
 
 ### Entity Collection
 

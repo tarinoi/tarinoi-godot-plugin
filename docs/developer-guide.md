@@ -341,14 +341,53 @@ Game developers fill in the stubs to implement their bindings.
 | File | Contents |
 |------|----------|
 | `tarinoi_functions.gd` | One inner class per function collection; one method stub per declared function |
-| `tarinoi_variables.gd` | One inner class per variable collection; `get_variable` / `set_variable` stubs |
+| `tarinoi_variables.gd` | One inner class per variable collection; a typed `var` field per declared variable, plus `get_variable` / `set_variable` (implemented via `get()`/`set()` reflection over those fields) |
 | `tarinoi_lists.gd` | Nested const classes for all list option keys |
 | `tarinoi_entities.gd` | Const classes for all entity identifiers |
 
-These files are stubs — they declare the interface but leave implementations as
-`push_error()` bodies. Commit the generated files; regenerate whenever the
-Tarinoi project schema changes. Implement bindings in a separate `impl/`
-directory so regeneration never overwrites game logic.
+Functions are stubs — they declare the interface but leave implementations as
+`push_error()` bodies. Variables are real, typed, defaulted fields — a
+pass-through implementation needs no code at all beyond `extends`. Commit the
+generated files; regenerate whenever the Tarinoi project schema changes.
+Implement bindings in a separate `impl/` directory so regeneration never
+overwrites game logic.
+
+Generated inner class names follow `Tarinoi{PascalCollectionName}{Kind}` (e.g.
+`TarinoiGlobalVariables`, `TarinoiChecksFunctions`) rather than the bare
+collection name — see [technical/codegen.md](technical/codegen.md#class-naming)
+for why (a Godot-specific global class name collision risk, not a general
+engine constraint).
+
+For a variable collection, the game-side implementation simply extends the
+generated class:
+
+```gdscript
+class_name GlobalVariables
+extends TarinoiVariables.TarinoiGlobalVariables
+```
+
+Because `has_keycard`, `pc_health`, etc. are now real inherited fields, adding
+or renaming a variable in Tarinoi and forgetting to update game code that
+references it (`.pc_health`) is a genuine GDScript parse error in the editor,
+not a silent runtime mismatch. If a variable's storage needs to come from
+somewhere else (a savegame system, a blackboard), override `get_variable` /
+`set_variable` directly and fall back to `super` for the rest:
+
+```gdscript
+class_name GlobalVariables
+extends TarinoiVariables.TarinoiGlobalVariables
+
+func get_variable(variable_name: String) -> Variant:
+    if variable_name == "pc_health":
+        return SaveSystem.player.health
+    return super.get_variable(variable_name)
+
+func set_variable(variable_name: String, value: Variant) -> void:
+    if variable_name == "pc_health":
+        SaveSystem.player.health = value
+        return
+    super.set_variable(variable_name, value)
+```
 
 ### Mismatch validation
 

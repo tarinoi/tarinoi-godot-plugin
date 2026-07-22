@@ -45,36 +45,31 @@ reverted in Tarinoi independently of any other changes.
 
 ### Variable binding implementation
 
-The implementation class must contain:
-
-1. A `var _store: Dictionary` initialised with all variables, their names as
-   keys and their default values as values. Default values must not be `null`
-   — the type is inferred from the value (`bool` → `boolean`,
-   `int`/`float` → `number`, `String` → `string`).
-
-2. A constant declaring the Tarinoi collection identifier:
+The implementation class must `extends` the generated base class for its
+collection, mirroring the function convention below. The generated base class
+(the inner class inside `TarinoiVariables`) already declares one typed `var`
+field per known variable with its Tarinoi default value:
 
 ```gdscript
 class_name GlobalVariables
+extends TarinoiVariables.TarinoiGlobalVariables
 
-const TARINOI_COLLECTION := "global"
-
-var _store: Dictionary = {
-    "is_earthling":  false,
-    "pc_health":     0,
-    "player_name":   "",
-}
-
-func get_variable(name: String) -> Variant:
-    return _store.get(name, null)
-
-func set_variable(name: String, value: Variant) -> void:
-    _store[name] = value
+var player_name: String = ""   # new variable, not yet known to Tarinoi
 ```
 
-`TARINOI_COLLECTION` is the programmatic identifier of the variable collection
-in Tarinoi (the `identifier` field on the collection manifest), not its display
-label.
+A pass-through implementation needs no body at all — inherited fields already
+provide storage and defaults. New variables the developer wants to introduce
+from the game side are added as plain typed `var` fields directly on the
+implementation subclass (not `null`-defaulted — the type is inferred from the
+declared field type: `bool` → `boolean`, `int`/`float` → `number`,
+`String` → `string`).
+
+The `extends` relationship encodes collection identity (the plugin knows this
+class belongs to the `global` collection because it extends
+`TarinoiVariables.TarinoiGlobalVariables`) and provides the diff target
+(fields declared on the implementation but absent from the generated base =
+new variables to push). See [codegen.md](codegen.md#class-naming) for why the
+base class is named `TarinoiGlobalVariables` rather than plain `Global`.
 
 ### Function binding implementation
 
@@ -84,16 +79,17 @@ collection. The generated base class is the inner class inside
 
 ```gdscript
 class_name GlobalFunctions
-extends TarinoiFunctions.Global
+extends TarinoiFunctions.TarinoiGlobalFunctions
 
 func CheckFlag(flag_ref: Variant) -> bool:
     return bool(VarRef.resolve(flag_ref))
 ```
 
 The `extends` relationship encodes collection identity (the plugin knows this
-class belongs to the `global` collection because it extends `TarinoiFunctions.Global`)
-and provides the diff target (methods in the implementation but absent from the
-generated base = new functions to push).
+class belongs to the `global` collection because it extends
+`TarinoiFunctions.TarinoiGlobalFunctions`) and provides the diff target
+(methods in the implementation but absent from the generated base = new
+functions to push).
 
 ---
 
@@ -126,7 +122,7 @@ immediately see the current Tarinoi values and the expected format:
 ## effect: pure
 ## arg flag_ref: variable-reference
 func CheckFlag(flag_ref: Variant) -> Variant:
-    push_error("TarinoiFunctions.Global.CheckFlag is not implemented")
+    push_error("TarinoiFunctions.TarinoiGlobalFunctions.CheckFlag is not implemented")
     return false
 
 ## AdjustCounter(counter_ref, delta) -> void
@@ -134,7 +130,7 @@ func CheckFlag(flag_ref: Variant) -> Variant:
 ## arg counter_ref: variable-reference
 ## arg delta: literal
 func AdjustCounter(counter_ref: Variant, delta: Variant) -> Variant:
-    push_error("TarinoiFunctions.Global.AdjustCounter is not implemented")
+    push_error("TarinoiFunctions.TarinoiGlobalFunctions.AdjustCounter is not implemented")
     return null
 ```
 
@@ -170,32 +166,43 @@ The plugin:
 
 ### Variable push
 
-Detection: the script defines `const TARINOI_COLLECTION`.
-
-Steps:
-1. Load the script resource; instantiate it to read `_store`.
-2. Resolve the Tarinoi collection ID from the DB:
-   `SELECT collection_id FROM collections WHERE collection_type = 'variable-collection' AND json_extract(payload, '$.identifier') = ?`
-3. For each key/value pair in `_store`:
-   a. Look up an existing `variable-declaration` document in the DB with
-      `json_extract(payload, '$.identifier') = <key>` in that collection.
-   b. Reuse its `document_id` if found; generate a new ID otherwise.
-   c. Construct a `TVariableDeclaration` payload:
-      - `identifier`: key
-      - `data_type`: inferred from `typeof(value)` (`bool`→`boolean`,
-        `int`/`float`→`number`, `String`→`string`)
-      - `default_value`: value
-4. Push all declarations as a single POST.
-
-### Function push
-
-Detection: the script's base class is `TarinoiFunctions.<Collection>`.
+Detection: the script's base class is `TarinoiVariables.Tarinoi<Collection>Variables`.
 
 Steps:
 1. Load both the implementation script and the generated base class script.
-2. Derive the collection name from the base class inner class name (e.g.
-   `TarinoiFunctions.Global` → collection identifier `"global"`, applying
-   PascalCase→snake_case conversion).
+2. Derive the collection identifier from the base class inner class name by
+   stripping the `Tarinoi` prefix and `Variables` suffix, then applying
+   PascalCase→snake_case conversion (e.g. `TarinoiGlobalVariables` →
+   `"global"`).
+3. Resolve the Tarinoi collection ID from the DB — via the collection's own
+   `collection-manifest` document, not the `collections` table (whose
+   `collection_name` holds the display label, not the identifier):
+   `SELECT document_id AS collection_id FROM documents WHERE document_type = 'collection-manifest' AND identifier = ? AND json_extract(payload, '$.collection_type') = 'variable-collection'`
+4. Diff field lists via `Script.get_script_property_list()`: fields declared
+   on the implementation but absent from the generated base class are
+   candidates to push.
+5. For each candidate field:
+   a. Look up an existing `variable-declaration` document in the DB with
+      `json_extract(payload, '$.identifier') = <field name>` in that
+      collection.
+   b. Reuse its `document_id` if found; generate a new ID otherwise.
+   c. Construct a `TVariableDeclaration` payload:
+      - `identifier`: field name
+      - `data_type`: inferred from the field's declared type (`bool`→`boolean`,
+        `int`/`float`→`number`, `String`→`string`)
+      - `default_value`: the field's initial value
+6. Push all declarations as a single POST.
+
+### Function push
+
+Detection: the script's base class is `TarinoiFunctions.Tarinoi<Collection>Functions`.
+
+Steps:
+1. Load both the implementation script and the generated base class script.
+2. Derive the collection identifier from the base class inner class name by
+   stripping the `Tarinoi` prefix and `Functions` suffix, then applying
+   PascalCase→snake_case conversion (e.g. `TarinoiGlobalFunctions` →
+   `"global"`).
 3. Resolve the Tarinoi collection ID from the DB (same query as variables,
    using `function-collection`).
 4. Diff method lists: methods present in the implementation but absent from
@@ -251,8 +258,8 @@ static func _new_id() -> String:
 
 ## Variable Removal
 
-By default, the push only adds and updates — keys removed from `_store` are
-not tombstoned in Tarinoi. This is safe because broken references are surfaced
+By default, the push only adds and updates — fields removed from the
+implementation are not tombstoned in Tarinoi. This is safe because broken references are surfaced
 automatically in Tarinoi on commit (pushed changes go to the buffer layer, so
 authors see the impact before anything is committed).
 
@@ -270,7 +277,7 @@ tombstones any that are no longer present.
 
 ## Notes for Future Back-ports
 
-`extends TarinoiFunctions.Global` (extending an inner class) is valid
+`extends TarinoiFunctions.TarinoiGlobalFunctions` (extending an inner class) is valid
 GDScript 4 syntax and is the supported convention for this plugin. If a
 back-port to an older Godot version is ever needed and inner class extends
 proves problematic, the fallback is to drop the `extends` relationship and

@@ -81,9 +81,9 @@ func validate_only(db: TarinoiDB) -> void:
 func _load_functions() -> Dictionary:
 	# Returns { collection_name: String → Array of { name, args, returns, effect } }
 	var rows := _db.query_rows("""
-		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, cm.identifier AS col_name
 		FROM documents d
-		JOIN collections c ON c.collection_id = d.collection_id
+		JOIN documents cm ON cm.document_id = d.collection_id AND cm.document_type = 'collection-manifest'
 		WHERE d.document_type = 'function-declaration'
 		  AND %s
 		ORDER BY col_name, d.identifier
@@ -110,9 +110,9 @@ func _load_functions() -> Dictionary:
 func _load_variables() -> Dictionary:
 	# Returns { collection_name → Array of { name, data_type, default_value } }
 	var rows := _db.query_rows("""
-		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, cm.identifier AS col_name
 		FROM documents d
-		JOIN collections c ON c.collection_id = d.collection_id
+		JOIN documents cm ON cm.document_id = d.collection_id AND cm.document_type = 'collection-manifest'
 		WHERE d.document_type = 'variable-declaration'
 		  AND %s
 		ORDER BY col_name, d.identifier
@@ -138,9 +138,9 @@ func _load_variables() -> Dictionary:
 func _load_lists() -> Dictionary:
 	# Returns { collection_name → Array of { identifier, options: Array of {key, option_value} } }
 	var rows := _db.query_rows("""
-		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, cm.identifier AS col_name
 		FROM documents d
-		JOIN collections c ON c.collection_id = d.collection_id
+		JOIN documents cm ON cm.document_id = d.collection_id AND cm.document_type = 'collection-manifest'
 		WHERE d.document_type = 'list-spec'
 		  AND %s
 		ORDER BY col_name, d.identifier
@@ -157,7 +157,7 @@ func _load_lists() -> Dictionary:
 			result[col] = []
 		(result[col] as Array).append({
 			"identifier": _str(row.get("identifier", "")),
-			"options":   (payload as Dictionary).get("options", []),
+			"options":   (payload as Dictionary).get("list_options", []),
 		})
 	return result
 
@@ -165,9 +165,9 @@ func _load_lists() -> Dictionary:
 func _load_entities() -> Dictionary:
 	# Returns { collection_name → Array of { identifier } }  (dialog_capable only)
 	var rows := _db.query_rows("""
-		SELECT d.identifier, d.payload, json_extract(c.payload, '$.collection_name') AS col_name
+		SELECT d.identifier, d.payload, cm.identifier AS col_name
 		FROM documents d
-		JOIN collections c ON c.collection_id = d.collection_id
+		JOIN documents cm ON cm.document_id = d.collection_id AND cm.document_type = 'collection-manifest'
 		WHERE d.document_type = 'entity'
 		  AND json_extract(d.payload, '$.dialog_capable') = 1
 		  AND %s
@@ -201,7 +201,7 @@ func _validate_functions(fns: Dictionary, output_path: String) -> void:
 	var existing := _parse_classes_and_methods(path)
 	var db_classes: Dictionary = {}
 	for col: String in fns:
-		var class_name_s := _to_pascal(col)
+		var class_name_s := _collection_class_name(col, "Functions")
 		db_classes[class_name_s] = {}
 		for fn: Dictionary in (fns[col] as Array):
 			db_classes[class_name_s][fn["name"]] = (fn["args"] as Array).size()
@@ -235,20 +235,69 @@ func _validate_variables(vars: Dictionary, output_path: String) -> void:
 	if not FileAccess.file_exists(ProjectSettings.globalize_path(path)):
 		return
 
-	var existing := _parse_classes_and_methods(path)
-	for col: String in vars:
-		var class_name_s := _to_pascal(col)
-		if not existing.has(class_name_s):
-			_errors.append("Missing variable class '%s' in generated file — regenerate" % class_name_s)
+	var abs_path := ProjectSettings.globalize_path(path)
+	var file := FileAccess.open(abs_path, FileAccess.READ)
+	if file == null:
+		return
+	var content := file.get_as_text()
+	file.close()
 
+	var existing := parse_variables_from_content(content)
+	var db_classes: Dictionary = {}
+	for col: String in vars:
+		var class_name_s := _collection_class_name(col, "Variables")
+		db_classes[class_name_s] = {}
+		for v: Dictionary in (vars[col] as Array):
+			(db_classes[class_name_s] as Dictionary)[_str(v["name"])] = _gd_type(_str(v["data_type"]))
+
+	# Missing from generated file (ERROR)
+	for cls: String in db_classes:
+		if not existing.has(cls):
+			_errors.append("Missing variable class '%s' in generated file — regenerate" % cls)
+			continue
+		for var_name: String in (db_classes[cls] as Dictionary):
+			if not (existing[cls] as Dictionary).has(var_name):
+				_errors.append("Missing variable '%s.%s' in generated file — regenerate" % [cls, var_name])
+			else:
+				var db_type: String = (db_classes[cls] as Dictionary)[var_name]
+				var gen_type: String = (existing[cls] as Dictionary)[var_name]
+				if db_type != gen_type:
+					_errors.append("Type mismatch '%s.%s': DB=%s generated=%s — regenerate" % [cls, var_name, db_type, gen_type])
+
+	# In generated file but not in DB (WARNING)
 	for cls: String in existing:
-		var found := false
-		for col: String in vars:
-			if _to_pascal(col) == cls:
-				found = true
-				break
-		if not found:
+		if not db_classes.has(cls):
 			_warnings.append("Obsolete variable class '%s' in generated file — remove from impl" % cls)
+			continue
+		for var_name: String in (existing[cls] as Dictionary):
+			if not (db_classes[cls] as Dictionary).has(var_name):
+				_warnings.append("Obsolete variable '%s.%s' — remove from impl" % [cls, var_name])
+
+
+# Parses a generated tarinoi_variables.gd file for top-level classes and their
+# typed `var` fields. Returns { class_name → { field_name → gd_type } }.
+# Exposed for testing.
+func parse_variables_from_content(content: String) -> Dictionary:
+	var result: Dictionary = {}
+	var current_class := ""
+	var class_re := RegEx.new()
+	class_re.compile("^class (\\w+):")
+	var field_re := RegEx.new()
+	field_re.compile("^\\s+var (\\w+):\\s*(\\w+)")
+
+	for line: String in content.split("\n"):
+		var cm := class_re.search(line)
+		if cm:
+			current_class = cm.get_string(1)
+			result[current_class] = {}
+			continue
+		if current_class.is_empty():
+			continue
+		var fm := field_re.search(line)
+		if fm:
+			(result[current_class] as Dictionary)[fm.get_string(1)] = fm.get_string(2)
+
+	return result
 
 
 # Parses a generated GDScript file for top-level classes and their func names + arg counts.
@@ -308,7 +357,7 @@ func _gen_functions(fns: Dictionary, header: String) -> String:
 		return header + "class_name TarinoiFunctions\n"
 	var out := header + "class_name TarinoiFunctions\n"
 	for col: String in _sorted_keys(fns):
-		var class_name_s := _to_pascal(col)
+		var class_name_s := _collection_class_name(col, "Functions")
 		out += "\nclass %s:\n" % class_name_s
 		for fn: Dictionary in (fns[col] as Array):
 			var fn_name: String = fn["name"]
@@ -331,18 +380,18 @@ func _gen_variables(vars: Dictionary, header: String) -> String:
 		return header + "class_name TarinoiVariables\n"
 	var out := header + "class_name TarinoiVariables\n"
 	for col: String in _sorted_keys(vars):
-		var class_name_s := _to_pascal(col)
+		var class_name_s := _collection_class_name(col, "Variables")
 		out += "\nclass %s:\n" % class_name_s
-		out += "\t## Variables in this collection:\n"
 		for v: Dictionary in (vars[col] as Array):
-			var default_str := str(v["default_value"]) if v["default_value"] != null else "null"
-			out += "\t##   %s  (%s)  default: %s\n" % [v["name"], v["data_type"], default_str]
+			var data_type: String = v["data_type"]
+			var gd_type := _gd_type(data_type)
+			var default_lit := _gd_default_literal(data_type, v.get("default_value"))
+			out += "\tvar %s: %s = %s\n" % [v["name"], gd_type, default_lit]
 		out += "\n"
 		out += "\tfunc get_variable(variable_name: String) -> Variant:\n"
-		out += '\t\tpush_error("TarinoiVariables.%s.get_variable is not implemented")\n' % class_name_s
-		out += "\t\treturn null\n\n"
+		out += "\t\treturn get(variable_name)\n\n"
 		out += "\tfunc set_variable(variable_name: String, value: Variant) -> void:\n"
-		out += '\t\tpush_error("TarinoiVariables.%s.set_variable is not implemented")\n\n' % class_name_s
+		out += "\t\tset(variable_name, value)\n\n"
 	return out
 
 
@@ -351,11 +400,11 @@ func _gen_lists(lists: Dictionary, header: String) -> String:
 		return header + "class_name TarinoiLists\n"
 	var out := header + "class_name TarinoiLists\n"
 	for col: String in _sorted_keys(lists):
-		out += "\nclass %s:\n" % _to_pascal(col)
+		out += "\nclass %s:\n" % _collection_class_name(col, "Lists")
 		for lst: Dictionary in (lists[col] as Array):
 			var list_id: String = lst["identifier"]
 			var options: Array = lst["options"]
-			out += "\tclass %s:\n" % _to_pascal(list_id)
+			out += "\tclass %s:\n" % _collection_class_name(list_id, "List")
 			for opt: Variant in options:
 				if not opt is Dictionary:
 					continue
@@ -372,7 +421,7 @@ func _gen_entities(ents: Dictionary, header: String) -> String:
 		return header + "class_name TarinoiEntities\n"
 	var out := header + "class_name TarinoiEntities\n"
 	for col: String in _sorted_keys(ents):
-		out += "\nclass %s:\n" % _to_pascal(col)
+		out += "\nclass %s:\n" % _collection_class_name(col, "Entities")
 		for ent: Dictionary in (ents[col] as Array):
 			var entity_id: String = ent["identifier"]
 			if entity_id.is_empty():
@@ -421,6 +470,17 @@ static func _to_pascal(s: String) -> String:
 	return result
 
 
+# Builds a collision-resistant class name for a per-collection (or per-list)
+# generated inner class: "Tarinoi{PascalName}{Kind}", e.g. "TarinoiPlayerVariables".
+# Godot's global class_name table checks nested class names too — nesting under
+# TarinoiVariables/TarinoiFunctions/etc. does not protect a bare collection name
+# like "Player" from colliding with an unrelated class_name elsewhere in the
+# consuming project, so every generated inner class name needs to be
+# independently unlikely to collide.
+static func _collection_class_name(name: String, kind: String) -> String:
+	return "Tarinoi%s%s" % [_to_pascal(name), kind]
+
+
 static func _str(v: Variant) -> String:
 	return str(v) if v != null else ""
 
@@ -456,3 +516,28 @@ static func _default_return(returns: String) -> String:
 		"string":  return '""'
 		"void":    return ""
 		_:         return "null"
+
+
+# Maps a Tarinoi variable data_type to a GDScript field type.
+static func _gd_type(data_type: String) -> String:
+	match data_type.to_lower():
+		"boolean": return "bool"
+		"number":  return "float"
+		"string":  return "String"
+		_:         return "Variant"
+
+
+# Renders a GDScript literal for a variable field's default value, given its
+# Tarinoi data_type. Falls back to the type's zero value when no default_value
+# is declared.
+static func _gd_default_literal(data_type: String, default_value: Variant) -> String:
+	match data_type.to_lower():
+		"boolean":
+			return "true" if (default_value != null and bool(default_value)) else "false"
+		"number":
+			return str(float(default_value)) if default_value != null else "0.0"
+		"string":
+			var s := _str(default_value)
+			return '"%s"' % s.replace("\\", "\\\\").replace('"', '\\"')
+		_:
+			return "null"
