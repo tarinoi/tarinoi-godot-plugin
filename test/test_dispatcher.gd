@@ -319,3 +319,66 @@ func test_ls_ref_resolved_with_value_field() -> void:
 	})
 	_disp.eval_condition("Fn.global.RecordArgs(Ls.global.thresholds.moderate, true)")
 	assert_eq(_fn.last_call_args[0], 5.0)
+
+
+# ---------------------------------------------------------------------------
+# Bare Var.* used directly as a condition
+#
+# Var.* resolves to a VarRef object so that functions can write through it.
+# A VarRef reaching a boolean context must be read first — plain bool() is true
+# for any non-null Object, which used to make these conditions always pass.
+# ---------------------------------------------------------------------------
+
+func test_bare_var_condition_reads_the_variable() -> void:
+	_vars.set_variable("flag", false)
+	assert_false(_disp.eval_condition("Var.player.flag"),
+		"a false variable must make the condition fail")
+
+	_vars.set_variable("flag", true)
+	assert_true(_disp.eval_condition("Var.player.flag"),
+		"a true variable must make the condition pass")
+
+
+func test_negated_bare_var_condition_reads_the_variable() -> void:
+	_vars.set_variable("flag", false)
+	assert_true(_disp.eval_condition("!Var.player.flag"))
+
+	_vars.set_variable("flag", true)
+	assert_false(_disp.eval_condition("!Var.player.flag"))
+
+
+func test_bare_var_condition_combines_with_operators() -> void:
+	_vars.set_variable("a", true)
+	_vars.set_variable("b", false)
+
+	assert_false(_disp.eval_condition("Var.player.a && Var.player.b"))
+	assert_true(_disp.eval_condition("Var.player.a || Var.player.b"))
+
+
+func test_bare_var_condition_treats_missing_variable_as_false() -> void:
+	assert_false(_disp.eval_condition("Var.player.never_set"))
+
+
+func test_bare_var_condition_coerces_non_bool_values() -> void:
+	_vars.set_variable("count", 0)
+	assert_false(_disp.eval_condition("Var.player.count"))
+
+	_vars.set_variable("count", 3)
+	assert_true(_disp.eval_condition("Var.player.count"))
+
+
+func test_var_ref_still_reaches_functions_unresolved() -> void:
+	# The fix must not resolve references on their way into a function, or
+	# write-back bindings would break.
+	_vars.set_variable("hp", 5)
+	_disp.eval_condition("Fn.global.RecordArgs(Var.player.hp, true)")
+	assert_true(_fn.last_call_args[0] is VarRef,
+		"functions must still receive an unresolved VarRef")
+
+
+func test_unbound_variable_collection_condition_is_false_not_a_crash() -> void:
+	# bool() has no null constructor, so an unresolved value reaching a boolean
+	# context used to raise instead of failing the condition.
+	assert_false(_disp.eval_condition("Var.unbound_collection.thing"))
+	assert_false(_disp.eval_condition("Ent.unbound_collection.thing"))
+	assert_push_error_count(2, "each unbound collection is reported once")

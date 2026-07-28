@@ -552,6 +552,8 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 		_finish_dialogue()
 		return
 
+	_sort_choices_by_geometry()
+
 	# Mixed PC/NPC set detection.
 	var pc_choices := _choices.filter(func(c: Dictionary) -> bool: return _is_pc_card(c["card"]))
 	var npc_choices := _choices.filter(func(c: Dictionary) -> bool: return not _is_pc_card(c["card"]))
@@ -582,6 +584,47 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 	_state = State.PC_CHOICE
 	_visited.clear()
 	choices_ready.emit(_choices)
+
+
+## Orders choices by ascending geo.y, per docs/developer-guide.md §8 — authors
+## express the intended display order by laying cards out vertically in the
+## graph editor, so connection order is an implementation artifact.
+##
+## sort_custom() is not stable, so ties fall back to the original position and
+## the ordering stays deterministic. "index" is reassigned afterwards because
+## select_choice() indexes _choices positionally.
+func _sort_choices_by_geometry() -> void:
+	for i in _choices.size():
+		(_choices[i] as Dictionary)["_source_order"] = i
+
+	_choices.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ay := _card_geo_y(a["card"] as Dictionary)
+		var by := _card_geo_y(b["card"] as Dictionary)
+		if ay == by:
+			return (a["_source_order"] as int) < (b["_source_order"] as int)
+		return ay < by
+	)
+
+	for i in _choices.size():
+		var choice := _choices[i] as Dictionary
+		choice.erase("_source_order")
+		choice["index"] = i
+
+
+## Vertical position of a card in the authoring graph.
+##
+## Cards without usable geometry sort last rather than to 0.0: authored y values
+## are routinely negative, so 0.0 would drop them into the middle of the list.
+## Note that geo may be present with a null y, which Dictionary.get()'s default
+## would not catch.
+func _card_geo_y(card: Dictionary) -> float:
+	var geo: Variant = card.get("geo")
+	if not geo is Dictionary:
+		return INF
+	var y: Variant = (geo as Dictionary).get("y")
+	if y is float or y is int:
+		return float(y)
+	return INF
 
 
 func _follow_jump(card: Dictionary, card_id: String, _collection_id: String) -> void:

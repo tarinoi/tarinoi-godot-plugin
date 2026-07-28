@@ -33,7 +33,7 @@ func eval_condition(expr: String) -> bool:
 	var ast: Variant = _get_condition_ast(expr)
 	if ast == null:
 		return true  # parse error already logged; treat as pass
-	return bool(_eval_node(ast))
+	return _truthy(_eval_node(ast))
 
 
 ## Evaluates a single function-call expression string. Returns Variant result.
@@ -91,6 +91,23 @@ func _get_call_ast(expr: String) -> Dictionary:
 # Evaluation
 # ---------------------------------------------------------------------------
 
+## Coerces an evaluated value to a boolean.
+##
+## Var.* references resolve to a VarRef object rather than a value, so that
+## functions receiving one can write through it. A bare VarRef reaching a
+## boolean context must therefore be read first: plain bool() is true for any
+## non-null Object, which silently made conditions like "Var.global.some_flag"
+## always pass regardless of what the variable held.
+## null is handled before bool(), which has no null constructor and would raise
+## "Nonexistent 'bool' constructor" instead. Unresolved references and unbound
+## collections both evaluate to null, so this path is reached in ordinary use.
+static func _truthy(value: Variant) -> bool:
+	var resolved: Variant = VarRef.resolve(value)
+	if resolved == null:
+		return false
+	return bool(resolved)
+
+
 func _eval_node(node: Variant) -> Variant:
 	if node == null:
 		return true
@@ -107,17 +124,17 @@ func _eval_node(node: Variant) -> Variant:
 		"string_literal":
 			return node["value"]
 		"not":
-			return not bool(_eval_node(node["operand"]))
+			return not _truthy(_eval_node(node["operand"]))
 		"and":
 			var left: Variant = _eval_node(node["left"])
-			if not bool(left):
+			if not _truthy(left):
 				return false
-			return bool(_eval_node(node["right"]))
+			return _truthy(_eval_node(node["right"]))
 		"or":
 			var left: Variant = _eval_node(node["left"])
-			if bool(left):
+			if _truthy(left):
 				return true
-			return bool(_eval_node(node["right"]))
+			return _truthy(_eval_node(node["right"]))
 		"call":
 			return _dispatch_fn(node as Dictionary)
 		"ref":
