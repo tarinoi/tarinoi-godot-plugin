@@ -656,8 +656,14 @@ static func _dict(d: Dictionary, key: String) -> Dictionary:
 	return v as Dictionary if v is Dictionary else {}
 
 
-## Loads all non-card global documents into memory with the two-layer merge
-## applied.  Called at configure() time and after every sync.
+## Loads all non-card global documents into memory.  Called at configure() time
+## and after every sync.
+##
+## The two-layer merge is applied by TarinoiDB.active_filter(), the same SQL the
+## card queries use.  This used to be reimplemented in GDScript here, which drifted:
+## the copy ignored tombstones and, more importantly, ignored committed_only — so
+## previewing committed content still showed uncommitted entities, collections and
+## lists.  Keep the merge in one place.
 func _load_global_cache() -> void:
 	if not _is_db_open():
 		return
@@ -668,9 +674,9 @@ func _load_global_cache() -> void:
 
 	# --- Collection manifests ---
 	var col_rows := _db.query_rows(
-		"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, identifier, payload FROM documents WHERE document_type = 'collection-manifest'"
+		"SELECT d.document_id, d.collection_id, d.update_key, d.identifier, d.payload FROM documents d WHERE d.document_type = 'collection-manifest' AND %s" % _db.active_filter()
 	)
-	for row in _merge_layers(col_rows):
+	for row in col_rows:
 		var p: Variant = JSON.parse_string(row["payload"] as String)
 		if not p is Dictionary:
 			continue
@@ -703,9 +709,9 @@ func _load_global_cache() -> void:
 
 	# --- Entities ---
 	var ent_rows := _db.query_rows(
-		"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, identifier, payload FROM documents WHERE document_type = 'entity'"
+		"SELECT d.document_id, d.collection_id, d.update_key, d.identifier, d.payload FROM documents d WHERE d.document_type = 'entity' AND %s" % _db.active_filter()
 	)
-	for row in _merge_layers(ent_rows):
+	for row in ent_rows:
 		var p: Variant = JSON.parse_string(row["payload"] as String)
 		if not p is Dictionary:
 			continue
@@ -733,10 +739,10 @@ func _load_global_cache() -> void:
 		for i in ids.size():
 			marks[i] = "?"
 		var list_rows := _db.query_rows(
-			"SELECT document_id, collection_id, layer_id, is_archived, is_moved, update_key, identifier, payload FROM documents WHERE collection_id IN (%s)" % ",".join(marks),
+			"SELECT d.document_id, d.collection_id, d.update_key, d.identifier, d.payload FROM documents d WHERE d.collection_id IN (%s) AND %s" % [",".join(marks), _db.active_filter()],
 			ids
 		)
-		for row in _merge_layers(list_rows):
+		for row in list_rows:
 			var p: Variant = JSON.parse_string(row["payload"] as String)
 			if not p is Dictionary:
 				continue
@@ -751,37 +757,6 @@ func _load_global_cache() -> void:
 
 	if _dispatcher != null:
 		_dispatcher.set_lists(_lists)
-
-
-## For each (document_id, collection_id) pair in rows, returns the single
-## "winning" row using the two-layer merge rule:
-##   - active buffer overrides main
-##   - inactive buffer (archived/moved) suppresses main — nothing returned
-##   - no buffer present → return main if active
-func _merge_layers(rows: Array) -> Array:
-	var by_key: Dictionary = {}
-	for row in rows:
-		var key := (row["document_id"] as String) + "|" + (row["collection_id"] as String)
-		if not by_key.has(key):
-			by_key[key] = {}
-		if (row.get("layer_id", "") as String).ends_with(".buffer"):
-			by_key[key]["buf"] = row
-		else:
-			by_key[key]["main"] = row
-
-	var result: Array = []
-	for key in by_key:
-		var pair    := by_key[key] as Dictionary
-		var buf     := pair.get("buf",  {}) as Dictionary
-		var main_row := pair.get("main", {}) as Dictionary
-		if not buf.is_empty():
-			if not buf.get("is_archived", false) and not buf.get("is_moved", false):
-				result.append(buf)
-			# else: inactive buffer is a suppression marker — main is hidden too
-		elif not main_row.is_empty():
-			if not main_row.get("is_archived", false) and not main_row.get("is_moved", false):
-				result.append(main_row)
-	return result
 
 
 # ---------------------------------------------------------------------------
