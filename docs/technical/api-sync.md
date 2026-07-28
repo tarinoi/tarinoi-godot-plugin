@@ -27,9 +27,9 @@ changes appear in-game as soon as they are saved in Tarinoi.
 | Setting | Type | Default | Notes |
 |---|---|---|---|
 | `tarinoi/sync_source` | `STRING` | `"git"` | `"git"` or `"api"` |
-| `tarinoi/api_path` | `STRING` | `""` | Full documents endpoint URL, e.g. `https://tarinoi.app/k/api/v1/<groupId>/<projectId>/documents`. Tarinoi provides a copy-paste link in the project settings. |
-| `tarinoi/api_key` | `STRING` (secret) | — | Stored in `user://tarinoi/.credentials` alongside the GitLab token, as `api_key=<value>`. Never stored in `project.godot`. |
-| `tarinoi/committed_only` | `BOOL` | `false` | When true, filters out buffer layer documents at all times, regardless of sync source. Only main-layer documents are visible to the runtime. |
+| `tarinoi/api/path` | `STRING` | `""` | Full documents endpoint URL, e.g. `https://tarinoi.app/k/api/v1/<groupId>/<projectId>/documents`. Tarinoi provides a copy-paste link in the project settings. |
+| `tarinoi/api/token` | `STRING` (status only) | — | Displays whether a token is saved. The token itself is **not** a project setting: it lives in `user://tarinoi/.credentials` as `api_key=<value>`, alongside the GitLab token, and never reaches `project.godot`. Set it via **Tools > Tarinoi: Set Tarinoi API token…**. |
+| `tarinoi/behaviour/committed_only` | `BOOL` | `false` | When true, filters out buffer layer documents at all times, regardless of sync source. Only main-layer documents are visible to the runtime. |
 
 `api_path` must include the `/documents` suffix — the plugin uses it verbatim
 as the base URL for paged requests.
@@ -168,7 +168,7 @@ No library needed. Split the response body on `"\n"`, call
 `tarinoi.local` uses a self-signed or locally-issued certificate. Godot's
 `HTTPClient` will reject it unless TLS verification is disabled.
 
-Add a boolean project setting `tarinoi/api_skip_tls_verify` (default `false`,
+Add a boolean project setting `tarinoi/api/skip_tls_verify` (default `false`,
 hidden or clearly labelled as dev-only). When true, configure the
 `TLSOptions` passed to `HTTPClient.connect_to_host()` to skip verification.
 Do not ship with this enabled.
@@ -199,8 +199,8 @@ addition to the manual sync trigger.
 
 | Setting | Type | Default | Notes |
 |---|---|---|---|
-| `tarinoi/api_poll_enabled` | `BOOL` | `false` | Enable automatic polling. |
-| `tarinoi/api_poll_interval` | `INT` | `10` | Seconds between polls. |
+| `tarinoi/api/poll_enabled` | `BOOL` | `false` | Enable automatic polling. |
+| `tarinoi/api/poll_interval` | `INT` | `10` | Seconds between polls. |
 
 ### Pause on inactivity
 

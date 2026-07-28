@@ -241,9 +241,13 @@ writes without blocking.
 Stored in `ProjectSettings` under `tarinoi/*`:
 
 ```
-tarinoi/repo_url        String   Remote URL (without credentials)
-tarinoi/auto_sync       bool     Sync on game start (default: false)
+tarinoi/sync_source     String   "git" or "api"
+tarinoi/git/repo_url    String   Remote URL (without credentials)
 ```
+
+The Git access token is not a project setting: it lives in
+`user://tarinoi/.credentials` as `token=<value>` and never reaches
+`project.godot`. Set it via **Tools > Tarinoi: Set Git access token…**.
 
 `project_id` is derived automatically from the repo URL slug (last path segment,
 `.git` stripped). It is not a user-facing setting.

@@ -11,7 +11,6 @@ signal dialogue_ended()
 signal dialogue_error(message: String)
 signal choice_made(card_data: Dictionary)
 signal pin_choice_needed(pin_names: Array)
-signal system_message(text: String)
 
 # Sync signals forwarded from importer
 signal sync_started()

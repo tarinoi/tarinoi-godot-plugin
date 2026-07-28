@@ -14,7 +14,7 @@ state and raise errors for mismatches.
 Codegen runs manually via **Tools > Tarinoi: Regenerate Bindings**.
 
 > **Not yet implemented:** automatic codegen after a successful sync
-> (`tarinoi/codegen_on_sync` setting).
+> (`tarinoi/codegen/on_sync` setting).
 
 Codegen never runs at game runtime.
 
@@ -22,7 +22,7 @@ Codegen never runs at game runtime.
 
 ## Output Files
 
-Files are written to the path configured in `tarinoi/codegen_output_path`
+Files are written to the path configured in `tarinoi/codegen/output_path`
 (default: `res://demo/bindings/generated/`). Configure this in Project Settings
 to a path appropriate for your game (e.g. `res://bindings/generated/`).
 

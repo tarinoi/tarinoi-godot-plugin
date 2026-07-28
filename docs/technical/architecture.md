@@ -108,7 +108,7 @@ your_game/
 │  Codegen  (codegen.gd)  — editor-only, not at runtime  │
 │  · reads functions/variables/lists/entities from DB     │
 │  · writes tarinoi_functions.gd etc. into configured     │
-│    output path (tarinoi/codegen_output_path)            │
+│    output path (tarinoi/codegen/output_path)            │
 │  · raises errors for missing or mismatched bindings     │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -161,7 +161,7 @@ SQLite snapshot bundled into the PCK:
    with empty stats so client scenes proceed normally without network calls.
 
 **Activation:**
-- Editor testing: set `tarinoi/offline_mode = true` in Project Settings.
+- Editor testing: set `tarinoi/behaviour/offline_mode = true` in Project Settings.
 - Exported build: add custom feature tag `tarinoi_offline` in the export preset.
 
 **Buffer layer in offline mode:** excluded by definition — the snapshot
