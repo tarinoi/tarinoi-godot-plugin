@@ -345,7 +345,7 @@ func _load_and_process_card(collection_id: String, card_id: String) -> void:
 
 
 func _process_card(card: Dictionary, card_id: String, collection_id: String) -> void:
-	var condition: String = _dict(card, "input_pin").get("condition", "")
+	var condition: String = _str(_dict(card, "input_pin").get("condition", ""))
 	if not condition.is_empty():
 		if "$" in condition:
 			TarinoiLogger.warn("TarinoiRuntime: unfilled template in condition '%s' [input_pin card:%s] — treating as true" % [condition, card_id])
@@ -357,7 +357,7 @@ func _process_card(card: Dictionary, card_id: String, collection_id: String) -> 
 				await _follow_connections(card, card_id, collection_id)
 				return
 
-	var base_ref: String = card.get("base_ref", "")
+	var base_ref: String = _str(card.get("base_ref", ""))
 	# Line cards evaluate their functions at a later stage (NPC: on display,
 	# PC: on selection) so we don't fire them prematurely for choice candidates.
 	if base_ref != "line":
@@ -377,8 +377,8 @@ func _process_card(card: Dictionary, card_id: String, collection_id: String) -> 
 
 
 func _process_line(card: Dictionary, card_id: String, collection_id: String) -> void:
-	var entity_name: String = card.get("entity_ref", "")
-	var line_mode: String = card.get("line_mode", "inherit")
+	var entity_name: String = _str(card.get("entity_ref", ""))
+	var line_mode: String = _str(card.get("line_mode", "inherit"))
 
 	var is_pc: bool
 	if line_mode == "pc":
@@ -424,7 +424,7 @@ func _follow_connections(card: Dictionary, card_id: String, collection_id: Strin
 	if _dispatcher != null:
 		_dispatcher.set_context_card(card)
 
-	var connections: Array = card.get("connections", [])
+	var connections: Array = _arr(card, "connections")
 	if connections.is_empty():
 		TarinoiLogger.error("TarinoiRuntime: card '%s' in '%s' has no connections — implicit dialogue end" % [card_id, collection_id])
 		_finish_dialogue()
@@ -454,14 +454,14 @@ func _follow_connections(card: Dictionary, card_id: String, collection_id: Strin
 				named_pins[pin] = target
 
 	if not named_pins.is_empty():
-		var output_selector: String = card.get("output_selector", "")
+		var output_selector: String = _str(card.get("output_selector", ""))
 		if not output_selector.is_empty() and "$" in output_selector:
 			TarinoiLogger.warn("TarinoiRuntime: unfilled template in output_selector '%s' [card:%s] — falling back to manual pin" % [output_selector, card_id])
 		elif not output_selector.is_empty() and _dispatcher != null and _dispatcher.has_call(output_selector):
 			TarinoiLogger.debug("output_selector '%s' [card:%s]" % [output_selector, card_id])
 			var pin_name := str(_dispatcher.eval_call(output_selector))
 			TarinoiLogger.debug("  output_selector → '%s'" % pin_name)
-			var target_id: String = named_pins.get(pin_name, "")
+			var target_id: String = _str(named_pins.get(pin_name, ""))
 			if target_id.is_empty():
 				_pending_system_lines.clear()
 				dialogue_error.emit("Switch mismatch on card %s: selector returned '%s'" % [card_id, pin_name])
@@ -517,12 +517,12 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 		var ccard: Dictionary = await data.load_card(collection_id, cid)
 		if ccard.is_empty():
 			continue
-		if ccard.get("base_ref", "") != "line":
+		if _str(ccard.get("base_ref", "")) != "line":
 			# Non-line card among choices: silently skip it as a selectable option.
 			TarinoiLogger.warn("TarinoiRuntime: non-line card %s in choice list — skipped" % cid)
 			continue
 		line_candidates += 1
-		var cond: String = _dict(ccard, "input_pin").get("condition", "")
+		var cond: String = _str(_dict(ccard, "input_pin").get("condition", ""))
 		if not cond.is_empty():
 			if "$" in cond:
 				TarinoiLogger.warn("TarinoiRuntime: unfilled template in condition '%s' [input_pin card:%s] — treating as true" % [cond, cid])
@@ -536,9 +536,9 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 			"index": _choices.size(),
 			"card_id": cid,
 			"collection_id": collection_id,
-			"entity_ref": ccard.get("entity_ref", ""),
-			"line": ccard.get("data", {}).get("line", ""),
-			"data": ccard.get("data", {}),
+			"entity_ref": _str(ccard.get("entity_ref", "")),
+			"line": _str(_dict(ccard, "data").get("line", "")),
+			"data": _dict(ccard, "data"),
 			"card": ccard,
 			"visited": _session_visited_choices.has(cid),
 		})
@@ -565,7 +565,7 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 	if pc_choices.is_empty() and npc_choices.size() > 1:
 		var seen_conds: Dictionary = {}
 		for choice: Dictionary in npc_choices:
-			var cond: String = _dict(choice["card"] as Dictionary, "input_pin").get("condition", "")
+			var cond: String = _str(_dict(choice["card"] as Dictionary, "input_pin").get("condition", ""))
 			if seen_conds.has(cond):
 				TarinoiLogger.warn(
 					"TarinoiRuntime: NPC lines with duplicate/empty condition '%s' from card %s — only the first will be reached" \
@@ -627,9 +627,9 @@ func _card_geo_y(card: Dictionary) -> float:
 
 
 func _follow_jump(card: Dictionary, card_id: String, _collection_id: String) -> void:
-	var jdata: Dictionary = card.get("data", {})
-	var target_col := jdata.get("target_collection_id", "") as String
-	var target_card := jdata.get("target_card_id", "") as String
+	var jdata: Dictionary = _dict(card, "data")
+	var target_col := _str(jdata.get("target_collection_id", ""))
+	var target_card := _str(jdata.get("target_card_id", ""))
 	if target_col.is_empty() or target_card.is_empty():
 		dialogue_error.emit("Jump card %s has missing target" % card_id)
 		return
@@ -653,6 +653,13 @@ static func _str(v: Variant) -> String:
 static func _dict(d: Dictionary, key: String) -> Dictionary:
 	var v: Variant = d.get(key)
 	return v as Dictionary if v is Dictionary else {}
+
+
+## Array counterpart of [method _dict]: a JSON `null` value reads as an empty
+## Array rather than propagating Nil into a typed variable.
+static func _arr(d: Dictionary, key: String) -> Array:
+	var v: Variant = d.get(key)
+	return v as Array if v is Array else []
 
 
 ## Loads all non-card global documents into memory.  Called at configure() time
@@ -780,13 +787,13 @@ func _resolve_entity(entity_name: String) -> Dictionary:
 func _eval_card_functions(card: Dictionary, card_id: String) -> void:
 	if _dispatcher == null:
 		return
-	var data: Dictionary = card.get("data", {})
+	var data: Dictionary = _dict(card, "data")
 	if data.is_empty():
 		return
 
 	# Build a position index from props so we can sort correctly.
 	var order: Dictionary = {}
-	var props: Array = card.get("props", [])
+	var props: Array = _arr(card, "props")
 	for i in props.size():
 		order[(props[i] as Dictionary).get("name", "")] = i
 
@@ -855,7 +862,7 @@ func _check_loop(card_id: String) -> bool:
 # ---------------------------------------------------------------------------
 
 func _make_line_data(card: Dictionary, card_id: String, collection_id: String) -> Dictionary:
-	var entity_name: String = card.get("entity_ref", "")
+	var entity_name: String = _str(card.get("entity_ref", ""))
 	var entity := _resolve_entity(entity_name)
 	return {
 		"card_id": card_id,

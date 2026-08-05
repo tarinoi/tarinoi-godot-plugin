@@ -494,6 +494,18 @@ func test_explicit_null_input_pin_is_treated_as_no_condition() -> void:
 	assert_eq(_last_line()["line"], "Shown")
 
 
+func test_null_condition_in_input_pin_is_treated_as_no_condition() -> void:
+	# input_pin is present but its condition is an explicit null.
+	_configure()
+	var card := _to(_line("Shown"), ["flow:end"])
+	card["input_pin"] = {"condition": null}
+	_fake.add("c1", card)
+
+	_runtime.start_dialogue("col1", "c1")
+
+	assert_eq(_last_line()["line"], "Shown")
+
+
 # ---------------------------------------------------------------------------
 # Player vs non-player lines
 # ---------------------------------------------------------------------------
