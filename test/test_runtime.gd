@@ -386,7 +386,7 @@ func test_several_default_targets_become_choices() -> void:
 
 
 # ---------------------------------------------------------------------------
-# Choice ordering — the geo.y rule (docs/developer-guide.md §8)
+# Choice ordering — the geo.y rule (https://tarinoi.app/docs/plugins/writing_your_own §7)
 # ---------------------------------------------------------------------------
 
 func test_choices_are_ordered_by_ascending_geo_y() -> void:
