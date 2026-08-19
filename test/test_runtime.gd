@@ -139,6 +139,12 @@ func _cond(card: Dictionary, condition) -> Dictionary:
 	return card
 
 
+## Marks a card as show-once, the flag authors set in Tarinoi.
+func _once(card: Dictionary) -> Dictionary:
+	card["shown_once"] = true
+	return card
+
+
 # ---------------------------------------------------------------------------
 # Setup / teardown
 # ---------------------------------------------------------------------------
@@ -324,7 +330,7 @@ func test_card_with_no_connections_ends_the_dialogue() -> void:
 	_runtime.advance()
 
 	assert_eq(_ended_count, 1)
-	assert_push_error_count(1, "the dead end is reported")
+	assert_push_error_count(1, "a miswired card is an error")
 
 
 func test_abort_ends_the_dialogue() -> void:
@@ -803,6 +809,114 @@ func test_choices_are_not_marked_visited_without_a_history_store() -> void:
 	_runtime.start_dialogue("col1", "c1")
 
 	assert_false(_choices()[0]["visited"])
+
+
+# ---------------------------------------------------------------------------
+# shown_once
+#
+# A card carrying shown_once stops being a valid continuation once the player has
+# seen it, so authors get "say this only once" without hand-rolling a flag per card.
+# Spent among other options, it is simply dropped; spent as the only way forward, it
+# dead-ends the dialogue like any other card with nowhere valid to go.
+# ---------------------------------------------------------------------------
+
+## Hub offering three player lines, the first of which is show-once and loops back.
+func _seed_shown_once_hub(loop_target: String = "hub") -> void:
+	_fake.add("hub", _to(_card("blank"), ["a", "b", "c"]))
+	_fake.add("a", _to(_geo(_once(_line("Once only", "pc")), 0.0), [loop_target]))
+	_fake.add("b", _to(_geo(_line("Again", "pc"), 1.0), ["hub"]))
+	_fake.add("c", _to(_geo(_line("And again", "pc"), 2.0), ["hub"]))
+
+
+func test_shown_once_option_disappears_once_the_player_takes_it() -> void:
+	_configure()
+	_seed_shown_once_hub()
+
+	_runtime.start_dialogue("col1", "hub")
+	assert_eq(_lines_of(_choices()), ["Once only", "Again", "And again"],
+		"offered normally the first time")
+
+	_runtime.select_choice(0)   # take it, loop back to the hub
+
+	assert_eq(_lines_of(_choices()), ["Again", "And again"],
+		"the spent option is filtered out")
+
+
+func test_shown_once_survives_the_dialogue_through_the_history_store() -> void:
+	_configure()
+	_runtime.history_store = TarinoiHistoryStore.InMemory.new()
+	_seed_shown_once_hub("flow:end")
+
+	_runtime.start_dialogue("col1", "hub")
+	_runtime.select_choice(0)   # take it; the dialogue ends and history is flushed
+
+	_runtime.start_dialogue("col1", "hub")
+
+	assert_eq(_lines_of(_choices()), ["Again", "And again"],
+		"still filtered on a later visit")
+
+
+func test_shown_once_resets_between_dialogues_without_a_history_store() -> void:
+	_configure()
+	_seed_shown_once_hub("flow:end")
+
+	_runtime.start_dialogue("col1", "hub")
+	_runtime.select_choice(0)
+
+	_runtime.start_dialogue("col1", "hub")
+
+	assert_eq(_lines_of(_choices()), ["Once only", "Again", "And again"],
+		"nothing persists the seen set, so the card is offered again")
+
+
+func test_shown_once_counts_an_npc_line_from_the_moment_it_is_displayed() -> void:
+	_configure()
+	# n1 plays as a plain line first, then turns up again as a candidate.
+	_fake.add("start", _to(_card("blank"), ["n1"]))
+	_fake.add("n1", _to(_geo(_once(_line("Greeting")), 0.0), ["hub"]))
+	_fake.add("hub", _to(_card("blank"), ["n1", "n2", "n3"]))
+	_fake.add("n2", _to(_geo(_line("Small talk"), 1.0), ["flow:end"]))
+	_fake.add("n3", _to(_geo(_line("More small talk"), 2.0), ["flow:end"]))
+
+	_runtime.start_dialogue("col1", "start")
+	assert_eq(_last_line()["line"], "Greeting")
+
+	_runtime.advance()   # through n1 to the hub
+
+	assert_eq(_lines_of(_choices()), ["Small talk", "More small talk"],
+		"a displayed NPC line counts as seen")
+
+
+func test_a_spent_shown_once_card_reached_on_its_own_ends_the_dialogue() -> void:
+	_configure()
+	_runtime.history_store = TarinoiHistoryStore.InMemory.new()
+	_fake.add("s1", _to(_card("blank"), ["a"]))
+	_fake.add("a", _to(_once(_line("Only way through")), ["flow:end"]))
+
+	_runtime.start_dialogue("col1", "s1")
+	assert_eq(_last_line()["line"], "Only way through", "shown the first time")
+	_runtime.advance()
+
+	_lines = []
+	_runtime.start_dialogue("col1", "s1")
+
+	assert_eq(_lines.size(), 0, "not shown a second time")
+	assert_eq(_ended_count, 2, "a spent card is no continuation at all — the dialogue ends")
+	assert_push_error_count(1, "reported like any other dead end")
+
+
+func test_dialogue_ends_when_every_candidate_is_a_spent_shown_once_card() -> void:
+	_configure()
+	_fake.add("hub", _to(_card("blank"), ["a", "b"]))
+	_fake.add("a", _to(_geo(_once(_line("First", "pc")), 0.0), ["hub"]))
+	_fake.add("b", _to(_geo(_once(_line("Second", "pc")), 1.0), ["hub"]))
+
+	_runtime.start_dialogue("col1", "hub")
+	_runtime.select_choice(0)     # "First" spent; only "Second" left, so it is forced
+	_runtime.select_choice(0)     # "Second" spent; the hub now has nothing to offer
+
+	assert_eq(_ended_count, 1, "the dialogue ends rather than hanging")
+	assert_push_error_count(1, "reported like any other dead end")
 
 
 # ---------------------------------------------------------------------------

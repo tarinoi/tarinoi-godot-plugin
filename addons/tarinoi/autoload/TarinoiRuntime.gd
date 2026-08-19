@@ -26,9 +26,9 @@ var registry: BindingRegistry = BindingRegistry.new()
 ## Also available after configure() for non-dialogue document access.
 var data: TarinoiDataAccess = null
 
-## Assign a TarinoiHistoryStore to enable visited-choice tracking across
-## dialogue visits. If null, visited state is not tracked and all choices
-## carry visited=false. See addons/tarinoi/core/history_store.gd.
+## Assign a TarinoiHistoryStore to enable seen-card tracking across dialogue
+## visits. If null, seen state is not tracked: all choices carry visited=false
+## and shown_once has no effect. See addons/tarinoi/core/history_store.gd.
 var history_store: TarinoiHistoryStore = null
 
 var _state: State = State.IDLE
@@ -44,9 +44,11 @@ var _api_importer: RefCounted = null
 var _poll_timer: Timer = null
 var _sync_in_progress: bool = false
 
-# Visited-choice history for the active dialogue session.
+# Seen-card history for the active dialogue session.
 var _session_start_card_id: String = ""
-var _session_visited_choices: Dictionary = {}  # card_id → true; player choices this session, flushed to history_store on end
+# card_id → true; every line card actually shown to the player (NPC lines on display,
+# PC lines on selection), seeded from history_store on start and flushed back on end.
+var _session_visited_choices: Dictionary = {}
 
 # System line queue — messages enqueued during output_selector evaluation that are
 # presented as interstitial NPC lines the player advances through before the next card.
@@ -377,6 +379,18 @@ func _process_card(card: Dictionary, card_id: String, collection_id: String) -> 
 
 
 func _process_line(card: Dictionary, card_id: String, collection_id: String) -> void:
+	# A spent shown_once card is not a valid continuation. Reaching one on its own is
+	# the same dead end as a card whose input conditions all failed — end the dialogue
+	# rather than show it, and report it the same way. Its functions do not run: the
+	# player never saw it.
+	if _is_spent_shown_once(card, card_id):
+		TarinoiLogger.error(
+			("TarinoiRuntime: card '%s' in '%s' is shown_once and has already been seen, " \
+			+ "and nothing else continues from here — implicit dialogue end") \
+			% [card_id, collection_id])
+		_finish_dialogue()
+		return
+
 	var entity_name: String = _str(card.get("entity_ref", ""))
 	var line_mode: String = _str(card.get("line_mode", "inherit"))
 
@@ -407,6 +421,9 @@ func _process_line(card: Dictionary, card_id: String, collection_id: String) -> 
 		choices_ready.emit(_choices)
 	else:
 		_eval_card_functions(card, card_id)
+		# An NPC line counts as seen the moment it is displayed; a PC line only
+		# counts once the player picks it (see select_choice).
+		_session_visited_choices[card_id] = true
 		_state = State.NPC_LINE
 		_current_card_data = {"card": card, "card_id": card_id, "collection_id": collection_id}
 		_visited.clear()
@@ -510,9 +527,19 @@ func _follow_connections(card: Dictionary, card_id: String, collection_id: Strin
 	await _build_choices_from_targets(default_targets, collection_id, card_id)
 
 
+## True when the card is marked shown_once and the player has already seen it, which
+## makes it ineligible both as a choice and as a continuation.
+##
+## == true rather than a truthiness test: an explicit null in the payload defeats
+## Dictionary.get()'s default.
+func _is_spent_shown_once(card: Dictionary, card_id: String) -> bool:
+	return card.get("shown_once", false) == true and _session_visited_choices.has(card_id)
+
+
 func _build_choices_from_targets(target_ids: Array, collection_id: String, source_card_id: String = "") -> void:
 	_choices = []
 	var line_candidates := 0
+	var shown_once_filtered := 0
 	for cid in target_ids:
 		var ccard: Dictionary = await data.load_card(collection_id, cid)
 		if ccard.is_empty():
@@ -522,6 +549,12 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 			TarinoiLogger.warn("TarinoiRuntime: non-line card %s in choice list — skipped" % cid)
 			continue
 		line_candidates += 1
+		# shown_once: drop a card the player has already seen. Checked before the
+		# input condition so a spent option costs nothing to evaluate.
+		if _is_spent_shown_once(ccard, cid):
+			TarinoiLogger.debug("shown_once: card %s already seen — filtered from choices" % cid)
+			shown_once_filtered += 1
+			continue
 		var cond: String = _str(_dict(ccard, "input_pin").get("condition", ""))
 		if not cond.is_empty():
 			if "$" in cond:
@@ -544,7 +577,15 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 		})
 
 	if _choices.is_empty():
-		if line_candidates > 0:
+		# Every way of running out of continuations is reported the same way; only the
+		# message differs, so the cause is identifiable.
+		if shown_once_filtered > 0:
+			TarinoiLogger.error(
+				"TarinoiRuntime: no continuation from card %s — of %d candidate(s), %d were "
+				% [source_card_id, line_candidates, shown_once_filtered]
+				+ "already-seen shown_once cards and the rest failed their input conditions. "
+				+ "Give the card a fallback option without shown_once if it must stay reachable.")
+		elif line_candidates > 0:
 			TarinoiLogger.error(
 				"TarinoiRuntime: no continuation from card %s — all %d input condition(s) failed" \
 				% [source_card_id, line_candidates])

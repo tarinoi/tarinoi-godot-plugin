@@ -568,9 +568,11 @@ Reads from the in-memory entity cache (`_entities`) that the runtime populates o
 
 ---
 
-## 15. Visited-choice history
+## 15. Seen-card history
 
-The plugin can dim choices the player has already traversed. Because the plugin does not own persistence, this is opt-in: you supply an implementation that stores and retrieves visited card IDs keyed by the start card of the dialogue.
+The plugin can dim choices the player has already traversed, and — via the `shown_once` card flag — drop them from the choice list altogether. Because the plugin does not own persistence, this is opt-in: you supply an implementation that stores and retrieves seen card IDs keyed by the start card of the dialogue.
+
+The runtime holds this state only for the duration of a dialogue. It asks for the set on `start_dialogue()` and hands the updated set back when the dialogue ends; nothing is retained inside the plugin between dialogues.
 
 ### Interface
 
@@ -578,15 +580,15 @@ The plugin can dim choices the player has already traversed. Because the plugin 
 
 | Method | Signature | Meaning |
 |--------|-----------|---------|
-| `get_visited` | `(start_card_id: String) -> Array` | Return the list of visited choice card IDs for this entry point. Return `[]` if nothing recorded. |
-| `save_visited` | `(start_card_id: String, visited_ids: Array) -> void` | Persist the complete visited set for this entry point. |
+| `get_visited` | `(start_card_id: String) -> Array` | Return the list of seen card IDs for this entry point. Return `[]` if nothing recorded. |
+| `save_visited` | `(start_card_id: String, visited_ids: Array) -> void` | Persist the complete seen set for this entry point. |
 
 The base class implementations are no-ops. Subclass it to persist to a save file.
 
 ### Lifecycle
 
 - **On `start_dialogue(collection_id, card_id)`:** the runtime calls `get_visited(card_id)` and seeds the session set from the result. The key is `card_id` (the start card of the dialogue).
-- **During the dialogue:** each `select_choice()` call adds the chosen card's ID to the session set.
+- **During the dialogue:** a card joins the session set as soon as the player actually sees it — an NPC line when it is displayed, a PC line when `select_choice()` picks it. A choice that is offered but not taken does not count as seen.
 - **On `dialogue_ended` or `abort_dialogue()`:** the runtime calls `save_visited(start_card_id, visited_ids)` with the full accumulated set, merging current and prior visits.
 
 ### The `visited` flag on choices
@@ -597,7 +599,41 @@ Every dict in the array emitted by `choices_ready` includes:
 "visited": bool   # true if this card's ID is in the current session set
 ```
 
-This flag is false when `history_store` is null. Use it in your choice UI to dim previously-taken branches.
+This flag is false when `history_store` is null, except for cards seen earlier in the dialogue currently running — the session set is tracked either way, and only its persistence between dialogues depends on `history_store`. Use the flag in your choice UI to dim previously-taken branches.
+
+### The `shown_once` card flag
+
+Authors can tick **shown once** on a card in Tarinoi. It sets `shown_once: true` on the card payload and means: *once the player has seen this card, stop offering it.*
+
+The rule is a single one: **a card the player has already seen, marked `shown_once`, is no longer a valid continuation.** It is spent when both hold:
+
+1. its payload has `shown_once` set to `true`, and
+2. its card ID is already in the session's seen set.
+
+This covers the common narrative pattern — "ask this question only once" — without an author having to define and check a flag per card.
+
+A spent card is skipped wherever the runtime would otherwise go to it, and its functions do not run, because the player never saw it. What that means depends on what else is available:
+
+- **Offered alongside other options:** it is dropped from the choice set. The check runs *before* entry conditions, so a spent option never has its condition evaluated.
+- **The last option standing:** if a hub offers three and two are spent, the survivor is followed directly with no choice UI — the same rule that already applies when entry conditions rule options out.
+- **The only way forward:** the dialogue ends. This is not a special case; it is the ordinary dead end covered in the next subsection.
+
+Without a `history_store`, `shown_once` still works *within* a single dialogue (a hub the player loops back to will not re-offer a spent option), but the seen set is discarded when the dialogue ends. Assign a store to make it stick across visits and save games.
+
+Tarinoi currently exposes the flag on line-based cards only. The runtime does not check the card type, so it will honour the flag on any line card it reaches — and only line cards are ever shown or offered, which makes the two rules amount to the same thing.
+
+### Dead ends
+
+A card with nowhere valid to go ends the dialogue and logs an error. Every cause is treated the same way:
+
+- the card has no connections at all, or none that name a target;
+- every candidate's entry condition evaluated false;
+- every remaining candidate was a spent `shown_once` card;
+- a spent `shown_once` card was the only continuation.
+
+The message names the card and says which of these it was, so the cause stays identifiable even though the level does not vary. Tarinoi's health check flags graphs where a dead end can arise, which is the right place to catch it: at authoring time, before a player meets it.
+
+If a `shown_once` card must stay reachable after it is spent, give its source a fallback option without the flag.
 
 ### Default in-memory implementation
 
