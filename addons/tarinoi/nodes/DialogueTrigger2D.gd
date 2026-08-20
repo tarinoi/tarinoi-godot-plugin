@@ -31,6 +31,6 @@ func _enter_tree() -> void:
 ## the player is overlapping this area.
 func activate() -> void:
 	if collection_id.is_empty() or card_id.is_empty():
-		push_warning("DialogueTrigger2D '%s': collection_id or card_id not set." % name)
+		TarinoiLogger.warn("DialogueTrigger2D '%s': collection_id or card_id not set." % name)
 		return
 	interaction_triggered.emit(collection_id, card_id)

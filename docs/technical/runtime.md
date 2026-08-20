@@ -60,7 +60,7 @@ AWAITING_PIN
 extends Node
 
 # --- Dialogue API ---
-func configure(repo_url: String = "") -> void
+func configure() -> void
 func sync() -> void
 func start_dialogue(collection_id: String, card_id: String) -> void
 func advance() -> void                    # NPC lines only

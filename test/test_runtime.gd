@@ -153,7 +153,6 @@ func before_each() -> void:
 	_project_id = "__test_runtime_%d__" % (Time.get_ticks_usec())
 
 	# Point the runtime at a throwaway project. api/path is what configure() reads.
-	ProjectSettings.set_setting("tarinoi/sync_source", "api")
 	ProjectSettings.set_setting("tarinoi/api/path",
 		"https://example.invalid/api/v1/group/%s/documents" % _project_id)
 	ProjectSettings.set_setting("tarinoi/behaviour/committed_only", false)

@@ -26,7 +26,7 @@ var _version_check := TarinoiDataVersion.new()
 ##   https://dev.tarinoi.app/k/api/v1/<groupId>/<projectId>/documents
 func sync(api_path: String) -> void:
 	if _is_busy():
-		push_warning("TarinoiApiImporter: operation already in progress")
+		TarinoiLogger.warn("sync already in progress")
 		return
 	sync_started.emit()
 	_thread = Thread.new()
@@ -90,6 +90,13 @@ func _do_sync(api_path: String) -> Dictionary:
 func _run_sync(api_path: String, api_key: String, start_cursor: String, db: TarinoiDB) -> Dictionary:
 	var stats := _empty_stats()
 	var skip_tls: bool = ProjectSettings.get_setting("tarinoi/api/skip_tls_verify", false)
+	if skip_tls:
+		TarinoiLogger.warn(
+			"tarinoi/api/skip_tls_verify is ON — the server's TLS certificate is not "
+			+ "being checked, so this connection can be intercepted. Use it only "
+			+ "against a local development host with a self-signed certificate, and "
+			+ "turn it off before you ship."
+		)
 
 	var parsed_url := _parse_url(api_path)
 	if parsed_url.is_empty():

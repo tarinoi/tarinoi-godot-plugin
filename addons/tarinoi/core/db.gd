@@ -22,7 +22,7 @@ func open(project_id: String) -> bool:
 	_db.path = DB_BASE_PATH + "/" + project_id + ".db"
 	_db.verbosity_level = SQLite.QUIET
 	if not _db.open_db():
-		push_error("TarinoiDB: failed to open '%s': %s" % [_db.path, _db.error_message])
+		TarinoiLogger.error("TarinoiDB: failed to open '%s': %s" % [_db.path, _db.error_message])
 		return false
 	_db.query("PRAGMA journal_mode=WAL")
 	_init_schema()
@@ -69,19 +69,17 @@ func write_meta(key: String, value: String) -> void:
 # the documents table as "d".  The fragment enforces the correct layer-merge
 # semantics based on the current project settings:
 #
-#   sync_source = "git"  (or committed_only = true)
-#     → simple activity check, optionally restricted to the main layer
+#   committed_only = true
+#     → main layer only: what the author has committed
 #
-#   sync_source = "api"  AND committed_only = false
+#   committed_only = false
 #     → two-layer merge: buffer overrides main; inactive buffer suppresses main
 # ---------------------------------------------------------------------------
 
 func active_filter() -> String:
 	var committed_only: bool = ProjectSettings.get_setting("tarinoi/behaviour/committed_only", false)
-	var sync_source: String  = ProjectSettings.get_setting("tarinoi/sync_source", "git")
-	if sync_source != "api" or committed_only:
-		var layer_clause := "d.layer_id = 'tarinoi:main-project-layer' AND " if committed_only else ""
-		return layer_clause + "d.is_tombstone = 0 AND d.is_archived = 0 AND d.is_moved = 0"
+	if committed_only:
+		return "d.layer_id = 'tarinoi:main-project-layer' AND d.is_tombstone = 0 AND d.is_archived = 0 AND d.is_moved = 0"
 	return """(
       (d.layer_id = 'tarinoi:main-project-layer.buffer'
        AND d.is_tombstone = 0 AND d.is_archived = 0 AND d.is_moved = 0)
@@ -105,7 +103,7 @@ func _run(sql: String, bindings: Array) -> bool:
 	var ok: bool = _db.query_with_bindings(sql, bindings) if bindings.size() > 0 \
 		else _db.query(sql)
 	if not ok:
-		push_error("TarinoiDB: %s\n→ %s" % [_db.error_message, sql])
+		TarinoiLogger.error("TarinoiDB: %s\n→ %s" % [_db.error_message, sql])
 	return ok
 
 

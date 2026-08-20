@@ -204,7 +204,6 @@ func test_integration_full_sync() -> void:
 		pending("Skipping integration test: SSL unavailable in headless mode")
 		return
 
-	ProjectSettings.set_setting("tarinoi/sync_source", "git")
 	ProjectSettings.set_setting("tarinoi/committed_only", false)
 
 	var api_key: String = _importer._read_credential("api_key")
@@ -258,7 +257,6 @@ func test_integration_incremental_sync() -> void:
 		pending("Skipping integration test: SSL unavailable in headless mode")
 		return
 
-	ProjectSettings.set_setting("tarinoi/sync_source", "git")
 	ProjectSettings.set_setting("tarinoi/committed_only", false)
 
 	var api_key: String = _importer._read_credential("api_key")

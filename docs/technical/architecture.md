@@ -19,7 +19,6 @@ addons/tarinoi/
     autoload/
         TarinoiRuntime.gd      # Singleton: the dialogue server
     core/
-        importer.gd            # Git sync + SQLite upsert
         api_importer.gd        # REST API sync (NDJSON, incremental cursor)
         db.gd                  # SQLite connection wrapper + layer-merge filter
         data_access.gd         # Query abstractions (swappable backend)
@@ -73,8 +72,6 @@ your_game/
 │  · upserts documents and collections into SQLite      │
 │  · writes api_sync_cursor to DB metadata              │
 └──────────────────────┬────────────────────────────────┘
-                       │
-      (alternative: Git sync via importer.gd)
                        │
 ┌──────────────────────▼────────────────────────────────┐
 │  SQLite DB  (db.gd + godot-sqlite GDExtension)        │
@@ -135,8 +132,8 @@ not the semantics.
 connect to those signals. The runtime never references UI nodes directly.
 Swapping the UI is a client-only change.
 
-**Two-layer merge.** When `sync_source = "api"` and `committed_only = false`,
-the DB stores both a main layer and a buffer layer. The buffer layer
+**Two-layer merge.** Unless `committed_only` is set, the DB stores both a main
+layer and a buffer layer. The buffer layer
 (`.buffer` namespace) overrides or suppresses the main layer in all queries,
 enabling live preview of in-progress edits. See `TarinoiDB.active_filter()`.
 

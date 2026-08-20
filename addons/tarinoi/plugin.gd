@@ -3,7 +3,6 @@ extends EditorPlugin
 
 const CREDENTIALS_PATH := "user://tarinoi/.credentials"
 
-var _importer: TarinoiImporter = null
 var _api_importer: TarinoiApiImporter = null
 
 
@@ -11,11 +10,10 @@ func _enter_tree() -> void:
 	_register_settings()
 	add_autoload_singleton("TarinoiRuntime", "res://addons/tarinoi/autoload/TarinoiRuntime.gd")
 	add_tool_menu_item("Tarinoi: Initialize project",       _on_initialize_pressed)
-	add_tool_menu_item("Tarinoi: Clone / Sync",             _on_sync_pressed)
+	add_tool_menu_item("Tarinoi: Sync",                     _on_sync_pressed)
 	add_tool_menu_item("Tarinoi: Snapshot for Export",      _on_snapshot_pressed)
 	add_tool_menu_item("Tarinoi: Regenerate Bindings",      _on_regen_pressed)
 	add_tool_menu_item("Tarinoi: Validate Bindings",        _on_validate_pressed)
-	add_tool_menu_item("Tarinoi: Set Git access token…",    _on_set_token_pressed)
 	add_tool_menu_item("Tarinoi: Set Tarinoi API token…",   _on_set_api_key_pressed)
 	add_tool_menu_item("Tarinoi: Clear local data",         _on_clear_data_pressed)
 
@@ -23,11 +21,10 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	remove_autoload_singleton("TarinoiRuntime")
 	remove_tool_menu_item("Tarinoi: Initialize project")
-	remove_tool_menu_item("Tarinoi: Clone / Sync")
+	remove_tool_menu_item("Tarinoi: Sync")
 	remove_tool_menu_item("Tarinoi: Snapshot for Export")
 	remove_tool_menu_item("Tarinoi: Regenerate Bindings")
 	remove_tool_menu_item("Tarinoi: Validate Bindings")
-	remove_tool_menu_item("Tarinoi: Set Git access token…")
 	remove_tool_menu_item("Tarinoi: Set Tarinoi API token…")
 	remove_tool_menu_item("Tarinoi: Clear local data")
 
@@ -60,7 +57,7 @@ script = ExtResource("2")
 """
 	var tscn_file := FileAccess.open(tscn_dest, FileAccess.WRITE)
 	if tscn_file == null:
-		push_error("Tarinoi: failed to write " + tscn_dest)
+		TarinoiLogger.error("failed to write " + tscn_dest)
 		return
 	tscn_file.store_string(tscn_content)
 	tscn_file = null
@@ -79,7 +76,7 @@ func _setup_bindings() -> void:
 """
 	var gd_file := FileAccess.open(gd_dest, FileAccess.WRITE)
 	if gd_file == null:
-		push_error("Tarinoi: failed to write " + gd_dest)
+		TarinoiLogger.error("failed to write " + gd_dest)
 		return
 	gd_file.store_string(gd_content)
 	gd_file = null
@@ -100,50 +97,22 @@ func _setup_bindings() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_sync_pressed() -> void:
-	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
-	if sync_source == "api":
-		_do_api_sync()
-	else:
-		_do_git_sync()
-
-
-func _do_git_sync() -> void:
-	var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
-	if repo_url.is_empty():
-		push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
-		return
-	_importer = TarinoiImporter.new()
-	_importer.sync_started.connect(func(): print("Tarinoi: sync started…"))
-	_importer.sync_progress.connect(func(msg, _f): print("Tarinoi: ", msg))
-	_importer.sync_completed.connect(func(stats: Dictionary):
-		print("Tarinoi: sync complete — ", stats)
-		if ProjectSettings.get_setting("tarinoi/codegen/on_sync", false):
-			var db := _open_db()
-			if db:
-				TarinoiCodegen.new().run(db)
-				db.close()
-	)
-	_importer.sync_failed.connect(func(reason): push_error("Tarinoi sync failed — " + reason))
-	_importer.sync(repo_url)
-
-
-func _do_api_sync() -> void:
 	var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
 	if api_path.is_empty():
-		push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
+		TarinoiLogger.error("set tarinoi/api/path in Project Settings first")
 		return
 	_api_importer = TarinoiApiImporter.new()
-	_api_importer.sync_started.connect(func(): print("Tarinoi: API sync started…"))
-	_api_importer.sync_progress.connect(func(msg, _f): print("Tarinoi: ", msg))
+	_api_importer.sync_started.connect(func(): TarinoiLogger.info("sync started…"))
+	_api_importer.sync_progress.connect(func(msg, _f): TarinoiLogger.info(msg))
 	_api_importer.sync_completed.connect(func(stats: Dictionary):
-		print("Tarinoi: API sync complete — ", stats)
+		TarinoiLogger.info("sync complete — %s" % stats)
 		if ProjectSettings.get_setting("tarinoi/codegen/on_sync", false):
 			var db := _open_db()
 			if db:
 				TarinoiCodegen.new().run(db)
 				db.close()
 	)
-	_api_importer.sync_failed.connect(func(reason): push_error("Tarinoi API sync failed — " + reason))
+	_api_importer.sync_failed.connect(func(reason): TarinoiLogger.error("sync failed — " + reason))
 	_api_importer.sync(api_path)
 
 
@@ -152,27 +121,13 @@ func _do_api_sync() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_snapshot_pressed() -> void:
-	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
-	var project_id: String
-	if sync_source == "api":
-		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
-		if api_path.is_empty():
-			push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
-			return
-		project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
-	else:
-		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
-		if repo_url.is_empty():
-			push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
-			return
-		project_id = repo_url.get_file().trim_suffix(".git")
+	var project_id := _project_id()
 	if project_id.is_empty():
-		push_error("Tarinoi: cannot derive project_id")
 		return
 
 	var src := ProjectSettings.globalize_path("user://tarinoi/" + project_id + ".db")
 	if not FileAccess.file_exists(src):
-		push_error("Tarinoi: no local DB at '%s' — run Sync first" % src)
+		TarinoiLogger.error("no local DB at '%s' — run Sync first" % src)
 		return
 
 	var dest_dir := "res://tarinoi/bundled"
@@ -180,13 +135,13 @@ func _on_snapshot_pressed() -> void:
 
 	var bytes := FileAccess.get_file_as_bytes(src)
 	if bytes.is_empty():
-		push_error("Tarinoi: could not read source DB at '%s'" % src)
+		TarinoiLogger.error("could not read source DB at '%s'" % src)
 		return
 
 	var dest_path := dest_dir + "/" + project_id + ".db"
 	var wf := FileAccess.open(dest_path, FileAccess.WRITE)
 	if wf == null:
-		push_error("Tarinoi: could not write snapshot to '%s'" % dest_path)
+		TarinoiLogger.error("could not write snapshot to '%s'" % dest_path)
 		return
 	wf.store_buffer(bytes)
 	wf = null  # close before reopening with SQLite
@@ -201,7 +156,7 @@ func _on_snapshot_pressed() -> void:
 		scrub.query("DELETE FROM metadata WHERE key IN ('api_path', 'api_sync_cursor')")
 		scrub.close_db()
 
-	print("Tarinoi: snapshot written — %d bytes → '%s'" % [bytes.size(), dest_path])
+	TarinoiLogger.info("snapshot written — %d bytes → '%s'" % [bytes.size(), dest_path])
 
 
 # ---------------------------------------------------------------------------
@@ -225,48 +180,31 @@ func _on_validate_pressed() -> void:
 
 
 func _open_db() -> TarinoiDB:
-	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
-	var project_id: String
-	if sync_source == "api":
-		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
-		if api_path.is_empty():
-			push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
-			return null
-		var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
-		project_id = stripped.get_file()
-	else:
-		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
-		if repo_url.is_empty():
-			push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
-			return null
-		project_id = repo_url.get_file().trim_suffix(".git")
-
+	var project_id := _project_id()
 	if project_id.is_empty():
-		push_error("Tarinoi: cannot derive project_id")
 		return null
 	var db := TarinoiDB.new()
 	if not db.open(project_id):
-		push_error("Tarinoi: failed to open DB for project '%s' — run Sync first" % project_id)
+		TarinoiLogger.error("failed to open DB for project '%s' — run Sync first" % project_id)
 		return null
 	return db
 
 
-# ---------------------------------------------------------------------------
-# Set Token dialog
-# ---------------------------------------------------------------------------
+## The DB slug, derived from the configured API path. Reports the reason and
+## returns "" when it cannot be derived, so callers can simply bail on empty.
+func _project_id() -> String:
+	var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
+	if api_path.is_empty():
+		TarinoiLogger.error("set tarinoi/api/path in Project Settings first")
+		return ""
+	var project_id := api_path.trim_suffix("/").trim_suffix("/documents").get_file()
+	if project_id.is_empty():
+		TarinoiLogger.error("cannot derive a project id from tarinoi/api/path '%s'" % api_path)
+	return project_id
 
-func _on_set_token_pressed() -> void:
-	_show_credential_dialog(
-		"Tarinoi: Set Access Token",
-		"Enter your GitLab personal access token.",
-		"Token already saved. Enter a new value to replace it.",
-		"glpat-xxxxxxxxxxxxxxxxxxxx",
-		"token"
-	)
-
 
 # ---------------------------------------------------------------------------
-# Set API Key dialog
+# Set API token dialog
 # ---------------------------------------------------------------------------
 
 func _on_set_api_key_pressed() -> void:
@@ -311,36 +249,15 @@ func _show_credential_dialog(title: String, prompt_new: String, prompt_existing:
 # ---------------------------------------------------------------------------
 
 func _on_clear_data_pressed() -> void:
-	var sync_source: String = ProjectSettings.get_setting("tarinoi/sync_source", "git")
-	var project_id: String
-	if sync_source == "api":
-		var api_path: String = ProjectSettings.get_setting("tarinoi/api/path", "")
-		if api_path.is_empty():
-			push_error("Tarinoi: set tarinoi/api/path in Project Settings first")
-			return
-		var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
-		project_id = stripped.get_file()
-	else:
-		var repo_url: String = ProjectSettings.get_setting("tarinoi/git/repo_url", "")
-		if repo_url.is_empty():
-			push_error("Tarinoi: set tarinoi/git/repo_url in Project Settings first")
-			return
-		project_id = repo_url.get_file().trim_suffix(".git")
-
+	var project_id := _project_id()
 	if project_id.is_empty():
-		push_error("Tarinoi: cannot derive project_id for clear")
 		return
 
-	var db_path   := ProjectSettings.globalize_path("user://tarinoi/" + project_id + ".db")
-	var repo_path := ProjectSettings.globalize_path("user://tarinoi/repos/" + project_id)
-
+	var db_path := ProjectSettings.globalize_path("user://tarinoi/" + project_id + ".db")
 	if FileAccess.file_exists(db_path):
 		DirAccess.remove_absolute(db_path)
-		print("Tarinoi: removed DB — ", db_path)
-	if DirAccess.dir_exists_absolute(repo_path):
-		OS.move_to_trash(repo_path)
-		print("Tarinoi: removed cloned repo — ", repo_path)
-	print("Tarinoi: local data cleared for project '%s'" % project_id)
+		TarinoiLogger.info("removed DB — " + db_path)
+	TarinoiLogger.info("local data cleared for project '%s'" % project_id)
 
 
 # ---------------------------------------------------------------------------
@@ -369,12 +286,12 @@ func _save_credential(key: String, value: String) -> void:
 
 	var wf := FileAccess.open(CREDENTIALS_PATH, FileAccess.WRITE)
 	if wf == null:
-		push_error("Tarinoi: failed to write credentials file")
+		TarinoiLogger.error("failed to write credentials file")
 		return
 	for line in lines:
 		if not line.strip_edges().is_empty():
 			wf.store_line(line)
-	print("Tarinoi: saved credential '%s'" % key)
+	TarinoiLogger.info("saved credential '%s'" % key)
 
 
 func _credential_is_saved(key: String) -> bool:
@@ -396,24 +313,12 @@ func _credential_is_saved(key: String) -> bool:
 # ---------------------------------------------------------------------------
 
 func _register_settings() -> void:
-	_add_setting("tarinoi/sync_source", TYPE_STRING, "git")
-	ProjectSettings.add_property_info({
-		"name": "tarinoi/sync_source",
-		"type": TYPE_STRING,
-		"hint": PROPERTY_HINT_ENUM,
-		"hint_string": "git,api",
-	})
-
 	# API sync
 	_add_setting("tarinoi/api/path",            TYPE_STRING, "")
 	_add_ro_credential_field("tarinoi/api/token")
 	_add_setting("tarinoi/api/skip_tls_verify", TYPE_BOOL,   false)
 	_add_setting("tarinoi/api/poll_enabled",    TYPE_BOOL,   false)
 	_add_setting("tarinoi/api/poll_interval",   TYPE_INT,    10)
-
-	# Git sync
-	_add_setting("tarinoi/git/repo_url",        TYPE_STRING, "")
-	_add_ro_credential_field("tarinoi/git/token")
 
 	# Codegen
 	_add_setting("tarinoi/codegen/output_path", TYPE_STRING, "res://bindings/generated/")
@@ -443,14 +348,10 @@ func _register_settings() -> void:
 
 
 func _refresh_credential_status() -> void:
-	var git_status := "saved — change via Tools > Tarinoi: Set Git access token…" \
-		if _credential_is_saved("token") \
-		else "not set — use Tools > Tarinoi: Set Git access token…"
 	var api_status := "saved — change via Tools > Tarinoi: Set Tarinoi API token…" \
 		if _credential_is_saved("api_key") \
 		else "not set — use Tools > Tarinoi: Set Tarinoi API token…"
-	ProjectSettings.set_setting("tarinoi/git/token", git_status)
-	ProjectSettings.set_setting("tarinoi/api/token",  api_status)
+	ProjectSettings.set_setting("tarinoi/api/token", api_status)
 
 
 func _add_ro_credential_field(name: String) -> void:

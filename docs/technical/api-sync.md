@@ -2,34 +2,22 @@
 
 ## Purpose
 
-Provide an alternative sync source that reads project documents from the
-Tarinoi REST API instead of a cloned Git repository. This enables near-real-time
-preview of dialogue changes — including uncommitted work-in-progress — removing
-the commit/push/pull cycle from the inner development loop.
+Read project documents from the Tarinoi REST API into the local SQLite mirror.
+This is how content reaches the plugin — there is no other sync source.
 
-The Git-based sync remains available. The developer chooses between the two via
-a project setting.
-
----
-
-## Motivation
-
-The Git sync path has inherent latency: a writer must commit and push, and the
-developer must pull or re-sync before seeing the change in-game. For iterative
-dialogue work this is significant friction. The API sync path reads from the
-live Tarinoi server and can include uncommitted buffer layer documents, so
-changes appear in-game as soon as they are saved in Tarinoi.
+Sync is incremental and cursor-based, and it can include uncommitted buffer
+layer documents, so a writer's changes appear in-game as soon as they are saved
+in Tarinoi rather than after a commit-and-publish cycle.
 
 ---
 
-## New Project Settings
+## Project Settings
 
 | Setting | Type | Default | Notes |
 |---|---|---|---|
-| `tarinoi/sync_source` | `STRING` | `"git"` | `"git"` or `"api"` |
 | `tarinoi/api/path` | `STRING` | `""` | Full documents endpoint URL, e.g. `https://tarinoi.app/k/api/v1/<groupId>/<projectId>/documents`. Tarinoi provides a copy-paste link in the project settings. |
-| `tarinoi/api/token` | `STRING` (status only) | — | Displays whether a token is saved. The token itself is **not** a project setting: it lives in `user://tarinoi/.credentials` as `api_key=<value>`, alongside the GitLab token, and never reaches `project.godot`. Set it via **Tools > Tarinoi: Set Tarinoi API token…**. |
-| `tarinoi/behaviour/committed_only` | `BOOL` | `false` | When true, filters out buffer layer documents at all times, regardless of sync source. Only main-layer documents are visible to the runtime. |
+| `tarinoi/api/token` | `STRING` (status only) | — | Displays whether a token is saved. The token itself is **not** a project setting: it lives in `user://tarinoi/.credentials` as `api_key=<value>` and never reaches `project.godot`. Set it via **Tools > Tarinoi: Set Tarinoi API token…**. |
+| `tarinoi/behaviour/committed_only` | `BOOL` | `false` | When true, filters out buffer layer documents. Only main-layer documents are visible to the runtime. |
 
 `api_path` must include the `/documents` suffix — the plugin uses it verbatim
 as the base URL for paged requests.
@@ -73,9 +61,8 @@ there are few changes.
 
 ### Sync trigger
 
-Same triggers as Git sync: the "Tarinoi: Clone / Sync" menu item, and at game
-startup via `TarinoiRuntime.sync()` (which checks `sync_source` and calls the
-appropriate importer). The Git path is unchanged when `sync_source = "git"`.
+Two triggers: the **Tools > Tarinoi: Sync** menu item, and at game startup via
+`TarinoiRuntime.sync()`. Optional background polling (below) adds a third.
 
 ---
 
@@ -165,35 +152,38 @@ No library needed. Split the response body on `"\n"`, call
 
 ### TLS and local development
 
-`tarinoi.local` uses a self-signed or locally-issued certificate. Godot's
-`HTTPClient` will reject it unless TLS verification is disabled.
+A locally-hosted Tarinoi uses a self-signed or locally-issued certificate, which
+Godot's `HTTPClient` rejects unless TLS verification is disabled.
 
-Add a boolean project setting `tarinoi/api/skip_tls_verify` (default `false`,
-hidden or clearly labelled as dev-only). When true, configure the
-`TLSOptions` passed to `HTTPClient.connect_to_host()` to skip verification.
-Do not ship with this enabled.
+`tarinoi/api/skip_tls_verify` (default `false`) exists for exactly that case.
+When true, the importer passes `TLSOptions.client_unsafe()` to
+`HTTPClient.connect_to_host()` instead of `TLSOptions.client()`.
+
+**This disables certificate checking entirely, which makes the connection
+interceptable.** It is meant for a local development host and nothing else. The
+importer logs a warning on every sync while it is on, and it must be off in
+anything you ship.
 
 ### "Clear local data" and layer isolation
 
-The existing "Tarinoi: Clear local data" menu item deletes the entire DB.
-This is correct for both sync sources — a fresh API sync will repopulate the
-DB from scratch including both layers.
+The **Tools > Tarinoi: Clear local data** menu item deletes the entire DB. A
+fresh sync repopulates it from scratch, including both layers.
 
-### Credentials file format (extended)
+### Credentials file format
 
 ```
-token=glpat-xxxx           # GitLab personal access token
 api_key=tarinoi-xxxx       # Tarinoi REST API key
 ```
 
-Both keys are optional and independent.
+The file lives outside the project directory, so a token cannot be committed
+or shipped in a build.
 
 ---
 
 ## Automatic Background Polling
 
-When `sync_source = "api"`, the plugin supports optional background polling in
-addition to the manual sync trigger.
+The plugin supports optional background polling in addition to the manual sync
+trigger.
 
 ### Settings
 

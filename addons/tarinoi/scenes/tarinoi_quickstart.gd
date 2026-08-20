@@ -14,8 +14,8 @@ func _ready() -> void:
 	_setup_bindings()
 	TarinoiRuntime.line_ready.connect(func(_d: Dictionary): _show_dialogue_mode())
 	TarinoiRuntime.dialogue_ended.connect(_show_start_mode)
-	TarinoiRuntime.dialogue_error.connect(func(m: String): push_error("Dialogue error: " + m))
-	TarinoiRuntime.sync_failed.connect(func(r: String): push_error("Tarinoi sync failed: " + r))
+	TarinoiRuntime.dialogue_error.connect(func(m: String): TarinoiLogger.error("dialogue error: " + m))
+	TarinoiRuntime.sync_failed.connect(func(r: String): TarinoiLogger.error("sync failed: " + r))
 	TarinoiRuntime.sync()
 	_show_start_mode()
 

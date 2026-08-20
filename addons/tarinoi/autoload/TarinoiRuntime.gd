@@ -39,7 +39,6 @@ var _current_collection_id: String = ""
 var _current_card_data: Dictionary = {}  # keys: card, card_id, collection_id
 var _choices: Array = []                 # Array of choice dicts (includes "card" key)
 var _visited: Dictionary = {}            # card_id → true; loop detection within one traversal
-var _importer: TarinoiImporter = null
 var _api_importer: RefCounted = null
 var _poll_timer: Timer = null
 var _sync_in_progress: bool = false
@@ -67,34 +66,17 @@ var _cache_max_update_key: int = 0         # highest update_key seen; tracks cac
 # Public API
 # ---------------------------------------------------------------------------
 
-## Configure the runtime.  Pass repo_url for Git sync, or leave empty to
-## auto-detect the project from ProjectSettings (handles both sync sources).
-func configure(repo_url: String = "") -> void:
-	var sync_source := ProjectSettings.get_setting("tarinoi/sync_source", "git") as String
-	if repo_url.is_empty() or sync_source == "api":
-		if sync_source == "api":
-			var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
-			if api_path.is_empty():
-				TarinoiLogger.error("TarinoiRuntime: tarinoi/api/path not set in ProjectSettings — set it via Project Settings > Tarinoi, and set your API token via Tools > Tarinoi: Set Tarinoi API token…")
-				return
-			var stripped := api_path.trim_suffix("/").trim_suffix("/documents")
-			_project_id = stripped.get_file()
-		else:
-			var url := repo_url if not repo_url.is_empty() \
-				else ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
-			_project_id = _slug_from_url(url)
-			# If still empty and api_path is set, derive project_id from it.
-			# Happens when sync_source is left at "git" but only API is configured.
-			if _project_id.is_empty():
-				var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
-				if not api_path.is_empty():
-					TarinoiLogger.warn("TarinoiRuntime: repo_url not set; deriving project_id from api_path. Set tarinoi/sync_source to 'api' in Project Settings.")
-					_project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
-	else:
-		_project_id = _slug_from_url(repo_url)
+## Configure the runtime. The project is identified by tarinoi/api/path in
+## Project Settings; open the local database and build the content caches.
+func configure() -> void:
+	var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
+	if api_path.is_empty():
+		TarinoiLogger.error("TarinoiRuntime: tarinoi/api/path not set in ProjectSettings — set it via Project Settings > Tarinoi, and set your API token via Tools > Tarinoi: Set Tarinoi API token…")
+		return
+	_project_id = api_path.trim_suffix("/").trim_suffix("/documents").get_file()
 
 	if _project_id.is_empty():
-		TarinoiLogger.error("TarinoiRuntime: cannot derive project_id — set tarinoi/sync_source and either tarinoi/git/repo_url or tarinoi/api/path in Project Settings > Tarinoi")
+		TarinoiLogger.error("TarinoiRuntime: cannot derive a project id from tarinoi/api/path '%s'" % api_path)
 		return
 	if _is_offline():
 		_seed_db_from_bundle(_project_id)
@@ -122,34 +104,7 @@ func sync() -> void:
 	if _is_offline():
 		sync_completed.emit({})
 		return
-	var sync_source := ProjectSettings.get_setting("tarinoi/sync_source", "git") as String
-	if sync_source == "api":
-		_sync_api()
-	else:
-		var repo_url := ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
-		if repo_url.is_empty():
-			var api_path := ProjectSettings.get_setting("tarinoi/api/path", "") as String
-			if not api_path.is_empty():
-				TarinoiLogger.warn("TarinoiRuntime: sync_source='git' but repo_url is not set; switching to API sync. Set tarinoi/sync_source to 'api' in Project Settings.")
-				_sync_api()
-				return
-		_sync_git()
-
-
-func _sync_git() -> void:
-	var repo_url := ProjectSettings.get_setting("tarinoi/git/repo_url", "") as String
-	if repo_url.is_empty():
-		TarinoiLogger.error("TarinoiRuntime: tarinoi/git/repo_url not set in ProjectSettings — set it via Project Settings > Tarinoi, and set your access token via Tools > Tarinoi: Set Git access token…")
-		return
-	_importer = TarinoiImporter.new()
-	_importer.sync_started.connect(func(): sync_started.emit())
-	_importer.sync_completed.connect(func(stats: Dictionary):
-		sync_completed.emit(stats)
-		_load_global_cache()
-	)
-	_importer.sync_failed.connect(func(reason: String): sync_failed.emit(reason))
-	_importer.sync_progress.connect(func(msg: String, frac: float): sync_progress.emit(msg, frac))
-	_importer.sync(repo_url)
+	_sync_api()
 
 
 func _sync_api(poll: bool = false) -> void:
@@ -923,10 +878,6 @@ func _is_db_open() -> bool:
 		TarinoiLogger.error("TarinoiRuntime: not configured — call configure() first")
 		return false
 	return true
-
-
-func _slug_from_url(repo_url: String) -> String:
-	return repo_url.get_file().trim_suffix(".git")
 
 
 func _is_offline() -> bool:

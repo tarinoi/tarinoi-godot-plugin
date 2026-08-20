@@ -43,8 +43,6 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 -- Keys used in metadata (accessed via TarinoiDB.read_meta / write_meta):
 --   schema_version       Schema version this database was created at
---   project_id           Project identifier, derived from the sync source
---   api_path             Documents endpoint URL (API sync)
---   api_sync_cursor      update_key watermark for incremental sync (API sync)
---   repo_url             Remote URL, without credentials (Git sync)
---   last_synced_commit   SHA of the last successfully imported commit (Git sync)
+--   project_id           Project identifier, derived from the API path
+--   api_path             Documents endpoint URL
+--   api_sync_cursor      update_key watermark for incremental sync
