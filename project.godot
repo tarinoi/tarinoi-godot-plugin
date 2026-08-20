@@ -13,9 +13,13 @@ config_version=5
 config/name="tarinoi"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
+[autoload]
+
+TarinoiRuntime="*uid://dou8nrdwyavpk"
+
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot-sqlite/plugin.cfg", "res://addons/gut/plugin.cfg", "res://addons/tarinoi/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot-sqlite/plugin.cfg", "res://addons/tarinoi/plugin.cfg")
 
 [gut]
 
@@ -26,3 +30,7 @@ options={
 "should_exit": true,
 "should_exit_on_success": true
 }
+
+[tarinoi]
+
+api/token="not set — use Tools > Tarinoi: Set Tarinoi API token…"
