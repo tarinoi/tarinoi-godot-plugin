@@ -38,13 +38,13 @@ choose **Properties**, and tick **Unblock**.
 The full guide — configuration, bindings, trigger nodes, replacing the dialogue UI,
 shipping a build, and troubleshooting — lives at:
 
-**https://tarinoi.app/docs/plugins/godot**
+**https://tarinoi.app/docs/plugins/godot.html**
 
 Related:
 
 - [What the plugins do and don't do](https://tarinoi.app/docs/plugins/)
-- [Writing your own integration](https://tarinoi.app/docs/plugins/writing_your_own) — the engine-agnostic data contract
-- [Adapting a plugin](https://tarinoi.app/docs/plugins/adapting) — forking, porting, and the traps we hit
+- [Writing your own integration](https://tarinoi.app/docs/plugins/writing_your_own.html) — the engine-agnostic data contract
+- [Adapting a plugin](https://tarinoi.app/docs/plugins/adapting.html) — forking, porting, and the traps we hit
 
 Implementation notes for this plugin specifically are in [`docs/technical/`](docs/technical/):
 API sync, the local database, expression evaluation, codegen, and the runtime

@@ -581,7 +581,7 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 	choices_ready.emit(_choices)
 
 
-## Orders choices by ascending geo.y, per https://tarinoi.app/docs/plugins/writing_your_own §7 — authors
+## Orders choices by ascending geo.y, per https://tarinoi.app/docs/plugins/writing_your_own.html §7 — authors
 ## express the intended display order by laying cards out vertically in the
 ## graph editor, so connection order is an implementation artifact.
 ##
