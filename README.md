@@ -11,12 +11,14 @@ Requires the latest stable **Godot 4.x**.
 
 ## Installation
 
-Search for **Tarinoi** in Godot's **AssetLib** tab, install it, and enable
-**Tarinoi** and **Godot SQLite** under **Project → Project Settings → Plugins**.
+Download `tarinoi-godot-plugin-v0.1.0.zip` from the
+[latest release](https://github.com/tarinoi/tarinoi-godot-plugin/releases/latest),
+copy both `addons/tarinoi/` and `addons/godot-sqlite/` out of it into your
+project's `addons/` directory, then enable **Tarinoi** and **Godot SQLite**
+under **Project → Project Settings → Plugins**.
 
-To install by hand instead, copy both `addons/tarinoi/` and
-`addons/godot-sqlite/` into your project's `addons/` directory, then enable
-them in the same place.
+Cloning this repository works too — the release zip is the same `addons/`
+content without the test suite, internal notes and build tooling.
 
 The plugin stores content in a local SQLite database, so it depends on
 [godot-sqlite](https://github.com/2shady4u/godot-sqlite). That dependency is
