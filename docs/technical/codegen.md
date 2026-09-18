@@ -38,6 +38,10 @@ Game developers copy or subclass them in `demo/bindings/impl/` and fill in
 the logic. The generated files should be committed to version control and
 regenerated whenever the Tarinoi project changes.
 
+One more file is written to the *impl* directory (`tarinoi/codegen/impl_path`,
+default `res://bindings/impl/`), and only once: the reference implementation of
+Tarinoi's core functions. See "Core functions scaffold" below.
+
 ---
 
 ## `tarinoi_functions.gd`
@@ -148,6 +152,100 @@ func set_variable(variable_name: String, value: Variant) -> void:
 Custom-cased variables like `pc_health` above are still matched by name as a
 string, so renames in Tarinoi won't be caught by the GDScript parser for
 that branch — mismatch validation (below) is the safety net for those cases.
+
+---
+
+`COLLECTIONS` maps every collection identifier to its generated class, so a
+game — or the quickstart scene — can bind them all without naming each:
+
+```gdscript
+for col in TarinoiVariables.COLLECTIONS:
+    TarinoiRuntime.registry.bind_variable_collection(col, TarinoiVariables.COLLECTIONS[col].new())
+```
+
+---
+
+## Core functions scaffold
+
+Tarinoi ships a fixed set of **core functions** — `Fn.tarinoi.*`: `SetFlag`,
+`ClearFlag`, `ToggleFlag`, `SetCounter`, `IncrementCounter`, `SetText`,
+`FlagIsSet`, `NumberEquals`, `NumberAtLeast`, `NumberGreaterThan`,
+`NumberAtMost`, `NumberLessThan`, `StringEquals` — that in-app playback
+evaluates for real. The plugin has to implement them with the same semantics,
+and the game may want to change *how* (a different variable store, savegame
+hooks). So the implementation is generated, once, as the game's own code.
+
+When the synced project has a function collection whose identifier is
+`tarinoi`, `run()` writes `tarinoi_core_functions.gd` into the impl directory
+**if no such file exists**:
+
+```gdscript
+# Tarinoi core functions 0.0.1 — reference implementation.
+# Scaffolded by Tarinoi codegen from <api_path>.
+#
+# This file is yours: edit it freely, codegen never overwrites it. Delete it
+# to get a fresh copy the next time you regenerate bindings.
+class_name TarinoiCoreFunctions
+extends TarinoiFunctions.TarinoiTarinoiFunctions
+
+
+## Set a flag.
+func SetFlag(flagRef: Variant) -> Variant:
+    _write(flagRef, true)
+    return null
+…
+```
+
+The rendering lives in `TarinoiCoreFunctionsScaffold`
+(`addons/tarinoi/codegen/core_functions.gd`): a table of the thirteen bodies,
+keyed by name, plus the four helpers (`_write`, `_flag`, `_number`, `_text`)
+they call. The helpers encode the contract shared with playback:
+
+- A `Var.*` argument arrives as a `VarRef`; `_write` writes through it and
+  logs if handed anything else.
+- Reads resolve a `VarRef` and pass plain values (literals, list items — the
+  Dispatcher has already resolved `Ls.*`) through.
+- **Unset variables read as `false` / `0` / `""`.** This is the part an
+  author relies on: what they verified in playback must hold in the game.
+- A value of the wrong type is an authoring error. Playback throws; the game
+  logs via `TarinoiLogger.error` and uses the type's default, because a
+  running dialogue should not crash over it.
+
+Rules:
+
+- The collection must be called exactly `tarinoi`. A project still carrying
+  the pre-rename `core` collection gets ordinary stubs for it, matching the
+  app, which no longer treats that collection as core either.
+- A declaration in the collection matches a body by **name and arity**.
+  Anything else — a newer app added a function, an arity changed — gets the
+  usual not-implemented stub, and codegen warns naming it.
+- The scaffold's first line stamps the version of the set it was rendered
+  from (`TarinoiCoreFunctionsScaffold.VERSION`, which follows the public core
+  functions document).
+
+Validation (`run()` and `validate_only()`) checks an existing scaffold and
+reports **warnings only** — it is the game's code, and a missing method still
+falls through to the generated base class stub:
+
+| Condition | Message |
+|---|---|
+| Scaffold exists, project has no `tarinoi` collection | `Core functions scaffold … exists but the project has no 'tarinoi' collection — delete it, or recreate the core functions in Tarinoi` |
+| Stamp differs from the plugin's version | `Core functions scaffold … is version '0.0.0'; this plugin scaffolds 0.0.1 — delete it to re-scaffold, or merge the changes by hand` |
+| A synced `tarinoi.*` function has no method in the scaffold | `Core functions scaffold … has no 'X' — Fn.tarinoi.X will hit the not-implemented stub; …` |
+| Method arity differs from the declaration | `Arg count mismatch in core functions scaffold 'X': DB=2 scaffold=1` |
+
+Binding it is one line, and the quickstart scene does it for you:
+
+```gdscript
+TarinoiRuntime.registry.bind_function_collection("tarinoi", TarinoiCoreFunctions.new())
+```
+
+`TarinoiQuickStart._ready()` calls `_bind_generated_defaults()` after
+`_setup_bindings()`: any variable collection in `TarinoiVariables.COLLECTIONS`
+left unbound gets its generated class, and `tarinoi` left unbound gets
+`TarinoiCoreFunctions`, both looked up through the global class list so the
+plugin never references the game's generated code directly. A real game binds
+explicitly; the convenience belongs to the quickstart scene, not the runtime.
 
 ---
 

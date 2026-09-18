@@ -7,6 +7,10 @@ class_name TarinoiCodegen
 #   tarinoi_lists.gd      — nested constants for list option keys
 #   tarinoi_entities.gd   — constants for entity names
 #
+# When the project carries Tarinoi's core function collection (`tarinoi`), it
+# also scaffolds tarinoi_core_functions.gd — the reference implementation of
+# that set — into the impl directory, once. See TarinoiCoreFunctionsScaffold.
+#
 # Validates existing generated files before writing. ERRORs block the write.
 # WARNINGs are logged but codegen proceeds.
 
@@ -30,13 +34,12 @@ func run(db: TarinoiDB) -> bool:
 	var lists  := _load_lists()
 	var ents   := _load_entities()
 
-	var output_path: String = ProjectSettings.get_setting(
-		"tarinoi/codegen/output_path", "res://bindings/generated/")
-	if not output_path.ends_with("/"):
-		output_path += "/"
+	var output_path := _output_path()
+	var impl_path := _impl_path()
 
 	_validate_functions(fns, output_path)
 	_validate_variables(vars, output_path)
+	_validate_core_functions(fns, impl_path)
 
 	_flush_diagnostics()
 	if not _errors.is_empty():
@@ -50,6 +53,7 @@ func run(db: TarinoiDB) -> bool:
 	_write_file(output_path + "tarinoi_lists.gd",     _gen_lists(lists, header))
 	_write_file(output_path + "tarinoi_entities.gd",  _gen_entities(ents, header))
 	TarinoiLogger.info("codegen: wrote 4 files to %s" % output_path)
+	_scaffold_core_functions(fns, impl_path)
 	return true
 
 
@@ -61,17 +65,97 @@ func validate_only(db: TarinoiDB) -> void:
 
 	var fns  := _load_functions()
 	var vars := _load_variables()
-	var output_path: String = ProjectSettings.get_setting(
-		"tarinoi/codegen/output_path", "res://bindings/generated/")
-	if not output_path.ends_with("/"):
-		output_path += "/"
+	var output_path := _output_path()
 
 	_validate_functions(fns, output_path)
 	_validate_variables(vars, output_path)
+	_validate_core_functions(fns, _impl_path())
 	_flush_diagnostics()
 
 	if _errors.is_empty() and _warnings.is_empty():
 		TarinoiLogger.info("codegen: bindings are up to date")
+
+
+static func _output_path() -> String:
+	return _dir_setting("tarinoi/codegen/output_path", "res://bindings/generated/")
+
+
+## Where the game's own binding implementations live; the core functions
+## scaffold is written here. Defaults to the sibling of the generated directory.
+static func _impl_path() -> String:
+	return _dir_setting("tarinoi/codegen/impl_path", "res://bindings/impl/")
+
+
+static func _dir_setting(key: String, default: String) -> String:
+	var path: String = ProjectSettings.get_setting(key, default)
+	if path.is_empty():
+		path = default
+	if not path.ends_with("/"):
+		path += "/"
+	return path
+
+
+# ---------------------------------------------------------------------------
+# Core functions scaffold
+# ---------------------------------------------------------------------------
+
+## Writes the reference implementation of Fn.tarinoi.* into the impl directory
+## if the project has the collection and no scaffold exists yet. Never
+## overwrites: the file belongs to the game once written.
+func _scaffold_core_functions(fns: Dictionary, impl_path: String) -> void:
+	if not fns.has(TarinoiCoreFunctionsScaffold.COLLECTION):
+		return
+	var res_path := impl_path + TarinoiCoreFunctionsScaffold.FILE_NAME
+	if FileAccess.file_exists(ProjectSettings.globalize_path(res_path)):
+		return
+
+	var api_path: String = _db.read_meta("api_path")
+	var rendered := TarinoiCoreFunctionsScaffold.render(
+		fns[TarinoiCoreFunctionsScaffold.COLLECTION] as Array,
+		api_path if not api_path.is_empty() else "unknown")
+	for fn_name: String in (rendered["unknown"] as Array):
+		TarinoiLogger.warn("codegen: Fn.%s.%s is not a core function this plugin knows — stubbed in %s; implement it or update the plugin"
+			% [TarinoiCoreFunctionsScaffold.COLLECTION, fn_name, res_path])
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(impl_path))
+	_write_file(res_path, rendered["source"] as String)
+	TarinoiLogger.info("codegen: scaffolded core functions %s to %s — the file is yours to edit"
+		% [TarinoiCoreFunctionsScaffold.VERSION, res_path])
+
+
+## Checks an existing scaffold against the synced collection and the plugin's
+## own version of the set. All warnings: the scaffold is the game's code, and a
+## missing method still falls through to the generated base class stub.
+func _validate_core_functions(fns: Dictionary, impl_path: String) -> void:
+	var res_path := impl_path + TarinoiCoreFunctionsScaffold.FILE_NAME
+	var abs_path := ProjectSettings.globalize_path(res_path)
+	if not FileAccess.file_exists(abs_path):
+		return
+	var file := FileAccess.open(abs_path, FileAccess.READ)
+	if file == null:
+		return
+	var content := file.get_as_text()
+	file.close()
+
+	var col := TarinoiCoreFunctionsScaffold.COLLECTION
+	if not fns.has(col):
+		_warnings.append("Core functions scaffold %s exists but the project has no '%s' collection — delete it, or recreate the core functions in Tarinoi" % [res_path, col])
+		return
+
+	var stamped := TarinoiCoreFunctionsScaffold.stamp_version(content)
+	if stamped != TarinoiCoreFunctionsScaffold.VERSION:
+		_warnings.append("Core functions scaffold %s is version '%s'; this plugin scaffolds %s — delete it to re-scaffold, or merge the changes by hand"
+			% [res_path, stamped, TarinoiCoreFunctionsScaffold.VERSION])
+
+	var methods := parse_methods_from_content(content)
+	for fn: Dictionary in (fns[col] as Array):
+		var fn_name: String = fn["name"]
+		if not methods.has(fn_name):
+			_warnings.append("Core functions scaffold %s has no '%s' — Fn.%s.%s will hit the not-implemented stub; add it or delete the scaffold to re-scaffold"
+				% [res_path, fn_name, col, fn_name])
+		elif methods[fn_name] != (fn["args"] as Array).size():
+			_warnings.append("Arg count mismatch in core functions scaffold '%s': DB=%d scaffold=%d"
+				% [fn_name, (fn["args"] as Array).size(), methods[fn_name]])
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +396,20 @@ func _parse_classes_and_methods(res_path: String) -> Dictionary:
 	return parse_classes_from_content(content)
 
 
+# Parses a flat GDScript file (no inner classes) for its top-level funcs.
+# Returns { func_name → arg_count }. Exposed for testing.
+static func parse_methods_from_content(content: String) -> Dictionary:
+	var result: Dictionary = {}
+	var func_re := RegEx.new()
+	func_re.compile("^func (\\w+)\\(([^)]*)\\)")
+	for line: String in content.split("\n"):
+		var fm := func_re.search(line)
+		if fm:
+			var args_str := fm.get_string(2).strip_edges()
+			result[fm.get_string(1)] = 0 if args_str.is_empty() else args_str.split(",").size()
+	return result
+
+
 # Exposed for testing. Parses GDScript source text instead of a file.
 func parse_classes_from_content(content: String) -> Dictionary:
 	var result: Dictionary = {}
@@ -392,6 +490,13 @@ func _gen_variables(vars: Dictionary, header: String) -> String:
 		out += "\t\treturn get(variable_name)\n\n"
 		out += "\tfunc set_variable(variable_name: String, value: Variant) -> void:\n"
 		out += "\t\tset(variable_name, value)\n\n"
+	# Lets a game (and the quickstart scene) bind every collection without
+	# naming each class: for col in COLLECTIONS: bind_variable_collection(col, COLLECTIONS[col].new())
+	out += "\n## The generated class for each variable collection, by identifier.\n"
+	out += "const COLLECTIONS := {\n"
+	for col: String in _sorted_keys(vars):
+		out += '\t"%s": %s,\n' % [col, _collection_class_name(col, "Variables")]
+	out += "}\n"
 	return out
 
 

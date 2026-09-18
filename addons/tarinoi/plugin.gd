@@ -322,6 +322,7 @@ func _register_settings() -> void:
 
 	# Codegen
 	_add_setting("tarinoi/codegen/output_path", TYPE_STRING, "res://bindings/generated/")
+	_add_setting("tarinoi/codegen/impl_path",   TYPE_STRING, "res://bindings/impl/")
 	_add_setting("tarinoi/codegen/on_sync",     TYPE_BOOL,   false)
 
 	# Behaviour

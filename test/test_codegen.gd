@@ -146,6 +146,10 @@ func test_gen_variables_has_class_name() -> void:
 	var out := _cg._gen_variables(_make_vars(), "")
 	assert_true(out.contains("class_name TarinoiVariables"))
 
+func test_gen_variables_maps_collections_to_their_classes() -> void:
+	var out := _cg._gen_variables(_make_vars(), "")
+	assert_true(out.contains('const COLLECTIONS := {\n\t"player": TarinoiPlayerVariables,\n}'))
+
 func test_gen_variables_has_collection_class() -> void:
 	var out := _cg._gen_variables(_make_vars(), "")
 	assert_true(out.contains("class TarinoiPlayerVariables:"))

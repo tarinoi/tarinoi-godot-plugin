@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Core functions.** Regenerate Bindings now scaffolds
+  `tarinoi_core_functions.gd` — the reference implementation of Tarinoi's
+  built-in `Fn.tarinoi.*` set (flags, counters, text, comparisons) with the
+  same semantics as in-app playback — into `tarinoi/codegen/impl_path`
+  (default `res://bindings/impl/`). It is written once and never overwritten:
+  the file is yours to adapt to your own variable storage. Validate Bindings
+  reports a scaffold that is out of date or missing a function.
+- `TarinoiVariables.COLLECTIONS` in the generated variables file maps each
+  collection identifier to its class.
+- The quickstart scene binds the generated variable classes and
+  `TarinoiCoreFunctions` for any collection `_setup_bindings()` leaves
+  unbound, so synced content that only uses core functions plays with no code.
+
 ### Changed
 - Supported data format is now `2.0.0`. Function-declaration arguments moved
   from `sub_type`/`allow_literal` to a `value_selectors` list; the plugin never
