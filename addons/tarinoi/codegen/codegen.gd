@@ -102,7 +102,7 @@ func _load_functions() -> Dictionary:
 			"name":    _str(row.get("identifier", "")),
 			"args":    (payload as Dictionary).get("function_args", []),
 			"returns": _str((payload as Dictionary).get("function_returns", "")),
-			"effect":  _str((payload as Dictionary).get("effect", "")),
+			"effect":  _str((payload as Dictionary).get("function_effect", "")),
 		})
 	return result
 

@@ -12,7 +12,7 @@ extends RefCounted
 ## One instance is expected to live for the duration of a single sync, so
 ## repeated occurrences of the same data_version are only logged once.
 
-const SUPPORTED_VERSION := "1.0.0"
+const SUPPORTED_VERSION := "2.0.0"
 
 # data_version String → "" (compatible) or the fatal error message (major mismatch).
 var _logged: Dictionary = {}

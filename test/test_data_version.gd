@@ -23,17 +23,17 @@ func test_empty_data_version_is_ignored() -> void:
 
 
 func test_patch_mismatch_is_not_fatal() -> void:
-	var err := _dv.check("1.0.1")
+	var err := _dv.check("2.0.1")
 	assert_eq(err, "", "patch mismatch should not be fatal")
 
 
 func test_minor_mismatch_is_not_fatal() -> void:
-	var err := _dv.check("1.1.0")
+	var err := _dv.check("2.1.0")
 	assert_eq(err, "", "minor mismatch should not be fatal")
 
 
 func test_major_mismatch_is_fatal() -> void:
-	var err := _dv.check("2.0.0")
+	var err := _dv.check("1.0.0")
 	assert_ne(err, "", "major mismatch must return a non-empty fatal error")
 	assert_push_error_count(1, "major mismatch logs via TarinoiLogger.error")
 
@@ -46,8 +46,8 @@ func test_unparseable_version_is_not_fatal() -> void:
 func test_repeated_major_mismatch_still_returns_fatal_each_time() -> void:
 	# The message is only logged once per distinct version, but every call
 	# must still report the fatal condition so callers keep aborting.
-	var first := _dv.check("2.0.0")
-	var second := _dv.check("2.0.0")
+	var first := _dv.check("1.0.0")
+	var second := _dv.check("1.0.0")
 	assert_ne(first, "")
 	assert_ne(second, "")
 	assert_eq(first, second)

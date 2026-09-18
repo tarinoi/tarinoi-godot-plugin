@@ -482,11 +482,12 @@ func test_load_functions_keys_by_manifest_identifier_not_label() -> void:
 	_seed_document(db, "colGlobalFn", "colGlobalFn", "collection-manifest", "global",
 		{"label": "Global functions", "collection_type": "function-collection"})
 	_seed_document(db, "fn1", "colGlobalFn", "function-declaration", "CheckFlag",
-		{"function_args": [], "function_returns": "boolean", "effect": "pure"})
+		{"function_args": [], "function_returns": "boolean", "function_effect": "pure"})
 	_cg._db = db
 	var fns := _cg._load_functions()
 	assert_true(fns.has("global"), "should key by collection-manifest identifier ('global'), not the display label")
 	assert_eq((fns["global"] as Array).size(), 1)
+	assert_eq((fns["global"] as Array)[0]["effect"], "pure", "effect is read from the payload's function_effect field")
 	db.close()
 
 
