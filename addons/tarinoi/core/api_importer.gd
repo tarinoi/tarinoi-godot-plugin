@@ -89,14 +89,9 @@ func _do_sync(api_path: String) -> Dictionary:
 
 func _run_sync(api_path: String, api_key: String, start_cursor: String, db: TarinoiDB) -> Dictionary:
 	var stats := _empty_stats()
-	var skip_tls: bool = ProjectSettings.get_setting("tarinoi/api/skip_tls_verify", false)
-	if skip_tls:
-		TarinoiLogger.warn(
-			"tarinoi/api/skip_tls_verify is ON — the server's TLS certificate is not "
-			+ "being checked, so this connection can be intercepted. Use it only "
-			+ "against a local development host with a self-signed certificate, and "
-			+ "turn it off before you ship."
-		)
+	var tls_opts := _tls_options()
+	if tls_opts.has("error"):
+		return {"error": tls_opts["error"]}
 
 	var parsed_url := _parse_url(api_path)
 	if parsed_url.is_empty():
@@ -119,7 +114,8 @@ func _run_sync(api_path: String, api_key: String, start_cursor: String, db: Tari
 		call_deferred("emit_signal", "sync_progress",
 			"Fetching page %d…" % page, clampf(0.1 + page * 0.05, 0.1, 0.9))
 
-		var fetch_result := _fetch_page(host, port, query_path, api_key, scheme == "https", skip_tls)
+		var fetch_result := _fetch_page(host, port, query_path, api_key, scheme == "https",
+			tls_opts["options"] as TLSOptions)
 		if fetch_result.has("error"):
 			return {"error": fetch_result["error"]}
 
@@ -192,12 +188,8 @@ func _rebuild_collections(db: TarinoiDB, stats: Dictionary) -> void:
 # ---------------------------------------------------------------------------
 
 func _fetch_page(host: String, port: int, path: String, api_key: String,
-		use_tls: bool, skip_tls_verify: bool) -> Dictionary:
+		use_tls: bool, tls_opts: TLSOptions) -> Dictionary:
 	var client := HTTPClient.new()
-
-	var tls_opts: TLSOptions = null
-	if use_tls:
-		tls_opts = TLSOptions.client_unsafe() if skip_tls_verify else TLSOptions.client()
 
 	var err: int
 	if use_tls:
@@ -355,6 +347,42 @@ func _upsert_document_api(doc: Dictionary, db: TarinoiDB, stats: Dictionary) -> 
 # ---------------------------------------------------------------------------
 # URL helpers
 # ---------------------------------------------------------------------------
+
+## Builds the TLSOptions for the sync from the project settings. Returns
+## {options: TLSOptions} or {error: String}.
+##
+## Three cases, in order of preference:
+##   - tarinoi/api/ca_certificate names a PEM: verify against that CA instead
+##     of the bundled roots. This is how to talk to a local development server
+##     with a locally-issued certificate (Caddy's `tls internal`, mkcert, …).
+##   - tarinoi/api/skip_tls_verify: no verification at all. Note that Godot's
+##     unsafe client also sends no SNI (it clears the hostname, and mbedtls
+##     derives SNI from it), so a server that picks its certificate by name —
+##     Caddy does — refuses the handshake outright. Prefer ca_certificate.
+##   - otherwise, the bundled certificate roots.
+static func _tls_options() -> Dictionary:
+	var ca_path: String = ProjectSettings.get_setting("tarinoi/api/ca_certificate", "")
+	if not ca_path.is_empty():
+		var ca := X509Certificate.new()
+		var err := ca.load(ca_path)
+		if err != OK:
+			return {"error": "Could not load tarinoi/api/ca_certificate '%s' (error %d) — it must be a PEM file" % [ca_path, err]}
+		TarinoiLogger.info("Verifying the server against tarinoi/api/ca_certificate (%s)" % ca_path)
+		return {"options": TLSOptions.client(ca)}
+
+	if ProjectSettings.get_setting("tarinoi/api/skip_tls_verify", false):
+		TarinoiLogger.warn(
+			"tarinoi/api/skip_tls_verify is ON — the server's TLS certificate is not "
+			+ "being checked, so this connection can be intercepted. Turn it off before "
+			+ "you ship. Note that Godot sends no SNI in this mode, so a server that "
+			+ "picks its certificate by host name (Caddy, most reverse proxies) will "
+			+ "refuse the handshake; for a local development server, point "
+			+ "tarinoi/api/ca_certificate at its CA certificate instead."
+		)
+		return {"options": TLSOptions.client_unsafe()}
+
+	return {"options": TLSOptions.client()}
+
 
 ## Parses a URL into {scheme, host, port, path}.
 func _parse_url(url: String) -> Dictionary:

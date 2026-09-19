@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TarinoiCoreFunctions` for any collection `_setup_bindings()` leaves
   unbound, so synced content that only uses core functions plays with no code.
 
+- `tarinoi/api/ca_certificate` — path to a PEM whose CA the sync verifies the
+  server against instead of the bundled roots. The way to sync from a local
+  development server (Caddy's `tls internal`, mkcert).
+
 ### Changed
 - Supported data format is now `2.0.0`. Function-declaration arguments moved
   from `sub_type`/`allow_literal` to a `value_selectors` list; the plugin never
@@ -28,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.0.0` documents.
 
 ### Fixed
+- `tarinoi/api/skip_tls_verify` could not connect to a server that picks its
+  certificate by host name (Caddy and most reverse proxies): Godot's unsafe TLS
+  client sends no SNI, so the server aborted the handshake with
+  `TLS handshake error: -30592`. The warning now explains this and points at
+  `ca_certificate`, which is the working alternative.
 - Generated function stubs now carry their `## effect:` comment. Codegen read
   the payload's `effect` key, which does not exist; the field is `function_effect`.
 

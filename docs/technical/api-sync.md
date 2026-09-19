@@ -152,17 +152,28 @@ No library needed. Split the response body on `"\n"`, call
 
 ### TLS and local development
 
-A locally-hosted Tarinoi uses a self-signed or locally-issued certificate, which
-Godot's `HTTPClient` rejects unless TLS verification is disabled.
+A locally-hosted Tarinoi uses a locally-issued certificate (Caddy's `tls
+internal`, mkcert, …), which Godot's `HTTPClient` rejects against its bundled
+roots. `TarinoiApiImporter._tls_options()` picks the `TLSOptions` from two
+settings:
 
-`tarinoi/api/skip_tls_verify` (default `false`) exists for exactly that case.
-When true, the importer passes `TLSOptions.client_unsafe()` to
-`HTTPClient.connect_to_host()` instead of `TLSOptions.client()`.
+`tarinoi/api/ca_certificate` (default `""`) — path to a PEM file. When set, the
+importer verifies the server against that CA (`TLSOptions.client(ca)`) instead
+of the bundled roots. This is the way to talk to a development server: the
+connection is still verified, and the host name is still sent. For Caddy the
+file is `~/Library/Application Support/Caddy/pki/authorities/local/root.crt` on
+macOS (`~/.local/share/caddy/pki/authorities/local/root.crt` on Linux).
 
-**This disables certificate checking entirely, which makes the connection
-interceptable.** It is meant for a local development host and nothing else. The
-importer logs a warning on every sync while it is on, and it must be off in
-anything you ship.
+`tarinoi/api/skip_tls_verify` (default `false`) — `TLSOptions.client_unsafe()`,
+no verification at all. **Besides making the connection interceptable, this
+mode does not work against most development servers.** Godot's unsafe client
+calls `mbedtls_ssl_set_hostname(nullptr)`, and mbedtls derives the SNI
+extension from that hostname, so the ClientHello carries no server name. A
+server that selects its certificate by name — Caddy, and most reverse proxies —
+has nothing to serve and aborts with a fatal alert, which surfaces as
+`TLS handshake error: -30592` followed by `HTTPClient poll error during connect: 25`.
+The importer's warning says so. Kept for servers that do present a default
+certificate; `ca_certificate` wins when both are set.
 
 ### "Clear local data" and layer isolation
 

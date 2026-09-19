@@ -316,6 +316,7 @@ func _register_settings() -> void:
 	# API sync
 	_add_setting("tarinoi/api/path",            TYPE_STRING, "")
 	_add_ro_credential_field("tarinoi/api/token")
+	_add_setting("tarinoi/api/ca_certificate",  TYPE_STRING, "")
 	_add_setting("tarinoi/api/skip_tls_verify", TYPE_BOOL,   false)
 	_add_setting("tarinoi/api/poll_enabled",    TYPE_BOOL,   false)
 	_add_setting("tarinoi/api/poll_interval",   TYPE_INT,    10)
