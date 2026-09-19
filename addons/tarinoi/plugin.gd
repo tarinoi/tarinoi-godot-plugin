@@ -212,7 +212,7 @@ func _on_set_api_key_pressed() -> void:
 		"Tarinoi: Set API Key",
 		"Enter your Tarinoi REST API key.",
 		"API key already saved. Enter a new value to replace it.",
-		"tarinoi-xxxx…",
+		"Paste the key from your Tarinoi profile",
 		"api_key"
 	)
 
@@ -312,7 +312,23 @@ func _credential_is_saved(key: String) -> bool:
 # ProjectSettings
 # ---------------------------------------------------------------------------
 
+## Settings from removed features. A project that enabled an earlier plugin
+## still carries them in project.godot, where they show up as a stray "Git"
+## group in Project Settings > Tarinoi. Erase them once, on load.
+const _OBSOLETE_SETTINGS := [
+	"tarinoi/git/token", "tarinoi/git/repo_url", "tarinoi/sync_source", "tarinoi/auto_sync",
+]
+
+
 func _register_settings() -> void:
+	var erased := false
+	for name: String in _OBSOLETE_SETTINGS:
+		if ProjectSettings.has_setting(name):
+			ProjectSettings.set_setting(name, null)
+			erased = true
+	if erased:
+		ProjectSettings.save()
+
 	# API sync
 	_add_setting("tarinoi/api/path",            TYPE_STRING, "")
 	_add_ro_credential_field("tarinoi/api/token")

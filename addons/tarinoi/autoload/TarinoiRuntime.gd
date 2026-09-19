@@ -622,14 +622,22 @@ func _card_geo_y(card: Dictionary) -> float:
 	return INF
 
 
+## A jump's destination is its one card-link property, `data.target`: the target
+## card's bare document id, with no collection component, and possibly on another
+## board. Locate it by id, then continue there.
 func _follow_jump(card: Dictionary, card_id: String, _collection_id: String) -> void:
 	var jdata: Dictionary = _dict(card, "data")
-	var target_col := _str(jdata.get("target_collection_id", ""))
-	var target_card := _str(jdata.get("target_card_id", ""))
-	if target_col.is_empty() or target_card.is_empty():
-		dialogue_error.emit("Jump card %s has missing target" % card_id)
+	var target := _str(jdata.get("target", ""))
+	if target.is_empty():
+		dialogue_error.emit("Jump card %s has no target" % card_id)
 		return
-	await _load_and_process_card(target_col, target_card)
+	if _check_loop(target):
+		return
+	var located: Dictionary = await data.locate_card(target)
+	if located.is_empty():
+		dialogue_error.emit("Jump card %s points at a card that does not exist: %s" % [card_id, target])
+		return
+	await _process_card(located["card"], target, _str(located["collection_id"]))
 
 
 # ---------------------------------------------------------------------------

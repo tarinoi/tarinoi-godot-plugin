@@ -54,6 +54,13 @@ class FakeData extends TarinoiDataAccess:
 	func get_document(document_id: String, collection_id: String = "") -> Dictionary:
 		return load_card(collection_id if not collection_id.is_empty() else "col1", document_id)
 
+	func locate_card(card_id: String) -> Dictionary:
+		for key: String in cards:
+			if key.get_slice("/", 1) == card_id:
+				loaded_ids.append(card_id)
+				return {"collection_id": key.get_slice("/", 0), "card": cards[key]}
+		return {}
+
 	func get_entity(identifier: String) -> Dictionary:
 		if _runtime_ref == null:
 			return {}
@@ -294,16 +301,30 @@ func test_start_card_is_traversed_without_being_shown() -> void:
 	assert_eq(_last_line()["line"], "Arrived")
 
 
-func test_jump_card_moves_to_another_collection() -> void:
+func test_jump_card_follows_its_target_link_to_another_collection() -> void:
+	# A jump's destination is data.target — a bare document id, which may live on
+	# another board. Not a (collection, card) pair, as the plugin once assumed.
 	_configure()
 	var jump := _card("jump")
-	jump["data"] = {"target_collection_id": "col2", "target_card_id": "far"}
+	jump["data"] = {"target": "far"}
 	_fake.add("c1", jump)
 	_fake.add("far", _to(_line("Elsewhere"), ["flow:end"]), "col2")
 
 	_runtime.start_dialogue("col1", "c1")
 
 	assert_eq(_last_line()["line"], "Elsewhere")
+
+
+func test_jump_card_with_a_dangling_target_reports_an_error() -> void:
+	_configure()
+	var jump := _card("jump")
+	jump["data"] = {"target": "nowhere"}
+	_fake.add("c1", jump)
+
+	_runtime.start_dialogue("col1", "c1")
+
+	assert_eq(_errors.size(), 1)
+	assert_true((_errors[0] as String).contains("nowhere"))
 
 
 # ---------------------------------------------------------------------------

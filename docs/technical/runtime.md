@@ -366,16 +366,28 @@ A `jump` card (`base_ref == "jump"`) has no `line` in `data`. Its purpose
 is to redirect traversal to any card anywhere in the project.
 
 ```gdscript
-# Jump card payload.data expected keys:
+# Jump card payload.data:
 {
-    "target_collection_id": String,
-    "target_card_id":       String
+    "target": String   # the destination card's bare document_id
 }
 ```
 
-On encountering a jump card: do not emit `line_ready`. Immediately load
-`target_card_id` from `target_collection_id` and continue traversal.
-Jump cards are transparent to the client.
+`target` is the jump base's one `card-link` property. It carries **no
+collection component** and may point at a card on another board, so the runtime
+resolves it with `TarinoiDataAccess.locate_card(card_id)`, which returns the
+card together with the collection it lives in (`load_card` needs the collection
+up front). A custom data provider must implement `locate_card` for jumps to
+work.
+
+On encountering a jump card: do not emit `line_ready`. Locate the target,
+run the loop check on it, and continue traversal there. Jump cards are
+transparent to the client. A dangling target — the card was deleted, or is
+on the wrong layer — is reported through `dialogue_error`.
+
+> The runtime used to expect a `target_collection_id` / `target_card_id` pair
+> here. That shape never existed in the data; it came from a documentation
+> error the app corrected on 2026-08-27. Any jump stopped the dialogue with
+> "Jump card … has missing target" until this was fixed.
 
 ---
 

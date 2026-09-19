@@ -32,6 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.0.0` documents.
 
 ### Fixed
+- Jump cards are followed again. A jump's destination is its `data.target`
+  card-link — the target card's bare document id, possibly on another board —
+  not the `target_collection_id` / `target_card_id` pair the runtime expected
+  (a documentation error the app corrected on 2026-08-27). Reaching a jump
+  used to stop the dialogue with "Jump card … has missing target".
+  `TarinoiDataAccess` gains `locate_card(card_id)`; custom providers should
+  implement it.
+- Settings left over from the removed Git integration (`tarinoi/git/*`,
+  `sync_source`, `auto_sync`) are erased from `project.godot` on load, so
+  Project Settings > Tarinoi no longer shows a stray "Git" group.
+- The API key dialog's placeholder suggested a `tarinoi-` prefix that keys do
+  not have.
 - `tarinoi/api/skip_tls_verify` could not connect to a server that picks its
   certificate by host name (Caddy and most reverse proxies): Godot's unsafe TLS
   client sends no SNI, so the server aborted the handshake with

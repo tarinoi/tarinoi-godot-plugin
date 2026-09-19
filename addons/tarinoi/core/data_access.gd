@@ -32,6 +32,13 @@ func load_card(collection_id: String, card_id: String) -> Dictionary:
 	return {}
 
 
+## Find a card by document id alone, when the collection is not known — a jump's
+## `data.target` is a bare document id and may point at another board.
+## Return {"collection_id": String, "card": Dictionary}, or {} if not found.
+func locate_card(card_id: String) -> Dictionary:
+	return {}
+
+
 ## Return raw DB rows for all start cards (document_id, collection_id, priority), or [].
 func query_start_cards(active_filter: String) -> Array:
 	return []
@@ -105,6 +112,21 @@ class Sync extends TarinoiDataAccess:
 		if parsed == null or not parsed is Dictionary:
 			return {}
 		return parsed as Dictionary
+
+	func locate_card(card_id: String) -> Dictionary:
+		if _db == null:
+			return {}
+		var rows: Array = await _query(
+			"SELECT d.collection_id, d.payload FROM documents d WHERE d.document_id = ? AND d.document_type = 'card' AND %s" \
+				% _db.active_filter(),
+			[card_id]
+		)
+		if rows.is_empty():
+			return {}
+		var parsed: Variant = JSON.parse_string(rows[0]["payload"] as String)
+		if parsed == null or not parsed is Dictionary:
+			return {}
+		return {"collection_id": str(rows[0]["collection_id"]), "card": parsed as Dictionary}
 
 
 	func query_start_cards(active_filter: String) -> Array:
