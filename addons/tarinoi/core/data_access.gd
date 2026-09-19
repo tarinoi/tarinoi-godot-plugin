@@ -136,6 +136,7 @@ class Sync extends TarinoiDataAccess:
 			SELECT d.document_id, d.collection_id,
 				   json_extract(d.payload, '$.data.label') AS label
 			FROM documents d
-			WHERE json_extract(d.payload, '$.base_ref') = 'start'
+			WHERE d.document_type = 'card'
+			  AND json_extract(d.payload, '$.base_ref') = 'start'
 			  AND %s
 		""" % active_filter)

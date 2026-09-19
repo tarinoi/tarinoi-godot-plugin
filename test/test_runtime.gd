@@ -1020,6 +1020,24 @@ func test_entities_are_loaded_from_the_database() -> void:
 	assert_eq((_runtime._entities.get("narrator", {}) as Dictionary).get("label"), "The Narrator")
 
 
+func test_start_card_query_skips_the_start_card_template() -> void:
+	# The `start` card template carries base_ref too, but it is not a card; listing
+	# it put a blank entry in the quickstart's entry-point picker.
+	_seed_document("card", "s1", {"base_ref": "start", "data": {"label": "Opening"}})
+	_seed_document("card-template", "start_tpl", {"base_ref": "start", "data": {}},
+		MAIN_LAYER, "", "tarinoi:card-templates")
+	var db := TarinoiDB.new()
+	assert_true(db.open(_project_id))
+	var sync := TarinoiDataAccess.Sync.new()
+	sync._setup(db, _runtime)
+
+	var rows: Array = await sync.query_start_cards(db.active_filter())
+
+	assert_eq(rows.size(), 1)
+	assert_eq(rows[0]["document_id"], "s1")
+	db.close()
+
+
 func test_active_buffer_entity_overrides_main() -> void:
 	_seed_entity("narrator", false, "Committed name", MAIN_LAYER)
 	_seed_entity("narrator", false, "Edited name", BUF_LAYER)
