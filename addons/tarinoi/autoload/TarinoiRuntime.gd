@@ -549,25 +549,36 @@ func _build_choices_from_targets(target_ids: Array, collection_id: String, sourc
 
 	_sort_choices_by_geometry()
 
-	# Mixed PC/NPC set detection.
+	# What kind of set this is decides how it is presented, as in in-app playback.
+	# Any PC line makes it a choice set: the PC lines are offered to the player,
+	# and an NPC line mixed in is an authoring error and is dropped. Otherwise it
+	# is an NPC set, and only the first line whose condition passed is shown —
+	# the conditions are how the author picks the line, not a menu.
 	var pc_choices := _choices.filter(func(c: Dictionary) -> bool: return _is_pc_card(c["card"]))
 	var npc_choices := _choices.filter(func(c: Dictionary) -> bool: return not _is_pc_card(c["card"]))
-	if pc_choices.size() > 0 and npc_choices.size() > 0:
-		TarinoiLogger.warn(
-			"TarinoiRuntime: mixed PC/NPC choice set from card %s — %d NPC line(s) will be unreachable" \
-			% [source_card_id, npc_choices.size()])
-
-	# Duplicate/missing input conditions on NPC-only set.
-	if pc_choices.is_empty() and npc_choices.size() > 1:
-		var seen_conds: Dictionary = {}
-		for choice: Dictionary in npc_choices:
-			var cond: String = _str(_dict(choice["card"] as Dictionary, "input_pin").get("condition", ""))
-			if seen_conds.has(cond):
-				TarinoiLogger.warn(
-					"TarinoiRuntime: NPC lines with duplicate/empty condition '%s' from card %s — only the first will be reached" \
-					% [cond, source_card_id])
-				break
-			seen_conds[cond] = true
+	if not pc_choices.is_empty():
+		if not npc_choices.is_empty():
+			TarinoiLogger.warn(
+				"TarinoiRuntime: mixed PC/NPC choice set from card %s — %d NPC line(s) dropped" \
+				% [source_card_id, npc_choices.size()])
+		_choices = pc_choices
+	else:
+		if npc_choices.size() > 1:
+			# Duplicate/missing input conditions: the later ones can never be reached.
+			var seen_conds: Dictionary = {}
+			for choice: Dictionary in npc_choices:
+				var cond: String = _str(_dict(choice["card"] as Dictionary, "input_pin").get("condition", ""))
+				if seen_conds.has(cond):
+					TarinoiLogger.warn(
+						"TarinoiRuntime: NPC lines with duplicate/empty condition '%s' from card %s — only the first will be reached" \
+						% [cond, source_card_id])
+					break
+				seen_conds[cond] = true
+			TarinoiLogger.debug("%d NPC lines passed from card %s — showing the first, %s"
+				% [npc_choices.size(), source_card_id, npc_choices[0]["card_id"]])
+		_choices = [npc_choices[0]]
+	for i in _choices.size():
+		(_choices[i] as Dictionary)["index"] = i
 
 	if _choices.size() == 1:
 		# Filtered down to one valid choice: follow it directly (no choice UI).

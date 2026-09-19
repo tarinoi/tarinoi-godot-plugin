@@ -37,8 +37,24 @@ FOLLOW_CONNECTIONS  ← classify outgoing connections of the card just left
   │       ├─ output_selector bound  → follow matching pin
   │       └─ no selector / unbound  → AWAITING_PIN (emit pin_choice_needed, wait)
   ├─ single default connection   → load target card (loop back to EVALUATING)
-  └─ multiple default connections → look-ahead: load all targets, filter to
-                                    "line" base_ref, present as PC_CHOICE
+  └─ multiple default connections → look-ahead: load all targets, keep "line"
+                                    cards whose gates pass, sort by geo.y, then
+                                    decide by the kind of set (below)
+
+What kind of set a look-ahead produced decides how it is presented, matching
+in-app playback (`usePlayback.getNextCards`):
+
+- **Any PC line in the set** → it is a choice set. The PC lines are offered as
+  `PC_CHOICE` in geo.y order; an NPC line mixed in is an authoring error and is
+  dropped with a warning.
+- **NPC lines only** → the author selects the line by its input condition, so
+  only the **first** passing line (by geo.y) is shown, as `NPC_LINE`. Several
+  passing lines are not a menu. Duplicate or empty conditions among them are
+  warned about, since the later ones can never be reached.
+
+A line is a PC line when its `line_mode` is `"pc"`; an NPC line when it is
+`"npc"`; and when it is `"inherit"` or unset, the speaker decides — the
+`entity_ref` entity's `is_player_character` flag (`_is_pc_card`).
 
 PC_CHOICE
   │  select_choice(index) called by client

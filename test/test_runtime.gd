@@ -406,6 +406,71 @@ func test_several_default_targets_become_choices() -> void:
 
 
 # ---------------------------------------------------------------------------
+# What kind of set it is: PC lines are a menu, NPC lines are a first-match
+# ---------------------------------------------------------------------------
+
+func test_several_npc_lines_passing_their_gates_show_only_the_first() -> void:
+	# Two NPC lines whose conditions both pass are not a menu: the author picks
+	# the line by condition, and the topmost match is the one the player hears.
+	_configure()
+	_bind_spy()
+	_fake.add("c1", _to(_card("blank"), ["a", "b", "c"]))
+	_fake.add("a", _cond(_geo(_to(_line("You told me Godot"), ["flow:end"]), 0.0), "Fn.g.True()"))
+	_fake.add("b", _cond(_geo(_to(_line("You have not visited"), ["flow:end"]), 10.0), "Fn.g.True()"))
+	_fake.add("c", _geo(_to(_line("Fallback"), ["flow:end"]), 20.0))
+
+	_runtime.start_dialogue("col1", "c1")
+
+	assert_eq(_choice_sets.size(), 0, "no choice UI for an NPC set")
+	assert_eq(_lines.size(), 1)
+	assert_eq(_last_line()["line"], "You told me Godot")
+	assert_eq(_runtime.get_state(), "NPC_LINE")
+
+
+func test_npc_set_skips_a_failing_line_to_the_next_match() -> void:
+	_configure()
+	_bind_spy()
+	_fake.add("c1", _to(_card("blank"), ["a", "b"]))
+	_fake.add("a", _cond(_geo(_to(_line("Gated"), ["flow:end"]), 0.0), "Fn.g.False()"))
+	_fake.add("b", _geo(_to(_line("Fallback"), ["flow:end"]), 10.0))
+
+	_runtime.start_dialogue("col1", "c1")
+
+	assert_eq(_last_line()["line"], "Fallback")
+
+
+func test_npc_set_decides_by_the_speaker_when_line_mode_is_inherited() -> void:
+	_seed_entity("narrator", false)
+	_configure()
+	var a := _geo(_to(_line("First", "inherit"), ["flow:end"]), 0.0)
+	a["entity_ref"] = "narrator"
+	var b := _geo(_to(_line("Second", "inherit"), ["flow:end"]), 10.0)
+	b["entity_ref"] = "narrator"
+	_fake.add("c1", _to(_card("blank"), ["a", "b"]))
+	_fake.add("a", a)
+	_fake.add("b", b)
+
+	_runtime.start_dialogue("col1", "c1")
+
+	assert_eq(_choice_sets.size(), 0)
+	assert_eq(_last_line()["line"], "First")
+
+
+func test_mixed_set_offers_the_pc_lines_and_drops_the_npc_lines() -> void:
+	_configure()
+	_fake.add("c1", _to(_card("blank"), ["a", "b", "c"]))
+	_fake.add("a", _geo(_line("Say this", "pc"), 0.0))
+	_fake.add("b", _geo(_line("Narration", "npc"), 10.0))
+	_fake.add("c", _geo(_line("Or this", "pc"), 20.0))
+
+	_runtime.start_dialogue("col1", "c1")
+
+	assert_eq(_lines_of(_choices()), ["Say this", "Or this"])
+	assert_eq((_choices()[1] as Dictionary)["index"], 1, "indices are contiguous after dropping")
+	assert_push_warning_count(1)
+
+
+# ---------------------------------------------------------------------------
 # Choice ordering — the geo.y rule (https://tarinoi.app/docs/plugins/writing_your_own.html §7)
 # ---------------------------------------------------------------------------
 
@@ -903,8 +968,9 @@ func test_shown_once_counts_an_npc_line_from_the_moment_it_is_displayed() -> voi
 
 	_runtime.advance()   # through n1 to the hub
 
-	assert_eq(_lines_of(_choices()), ["Small talk", "More small talk"],
-		"a displayed NPC line counts as seen")
+	# An NPC set shows its first eligible line; the spent n1 is no longer eligible.
+	assert_eq(_choice_sets.size(), 0)
+	assert_eq(_last_line()["line"], "Small talk", "a displayed NPC line counts as seen")
 
 
 func test_a_spent_shown_once_card_reached_on_its_own_ends_the_dialogue() -> void:

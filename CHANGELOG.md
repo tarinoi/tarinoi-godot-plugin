@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.0.0` documents.
 
 ### Fixed
+- Several NPC lines passing their gates at once were presented as a numbered
+  menu. An NPC set is not a menu: the author picks the line by condition, so
+  only the first passing line (by geo.y) is shown, as in-app playback does. A
+  set with any PC line in it is still a choice set; NPC lines mixed into one
+  are dropped with a warning rather than offered.
 - Jump cards are followed again. A jump's destination is its `data.target`
   card-link — the target card's bare document id, possibly on another board —
   not the `target_collection_id` / `target_card_id` pair the runtime expected
