@@ -4,6 +4,7 @@ extends EditorPlugin
 const CREDENTIALS_PATH := "user://tarinoi/.credentials"
 
 var _api_importer: TarinoiApiImporter = null
+var _export_plugin: EditorExportPlugin = null
 
 
 func _enter_tree() -> void:
@@ -16,6 +17,8 @@ func _enter_tree() -> void:
 	add_tool_menu_item("Tarinoi: Validate Bindings",        _on_validate_pressed)
 	add_tool_menu_item("Tarinoi: Set Tarinoi API token…",   _on_set_api_key_pressed)
 	add_tool_menu_item("Tarinoi: Clear local data",         _on_clear_data_pressed)
+	_export_plugin = preload("res://addons/tarinoi/export_plugin.gd").new()
+	add_export_plugin(_export_plugin)
 
 
 func _exit_tree() -> void:
@@ -27,6 +30,8 @@ func _exit_tree() -> void:
 	remove_tool_menu_item("Tarinoi: Validate Bindings")
 	remove_tool_menu_item("Tarinoi: Set Tarinoi API token…")
 	remove_tool_menu_item("Tarinoi: Clear local data")
+	remove_export_plugin(_export_plugin)
+	_export_plugin = null
 
 
 # ---------------------------------------------------------------------------

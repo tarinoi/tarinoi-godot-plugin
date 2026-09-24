@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.0.0` documents.
 
 ### Fixed
+- Exports left out the Snapshot for Export database: Godot's export filters
+  only pick up resources, so an offline build started with no dialogue unless
+  `tarinoi/bundled/*.db` had been added to the preset by hand. The plugin now
+  adds the snapshot to every export itself, and warns when `offline_mode` is on
+  but there is no snapshot to ship.
 - The quickstart logged "not configured — call configure() first" on every
   launch: `TarinoiChooseStart` queried start cards in its `_ready()`, which runs
   before its parent's `_ready()` has configured the runtime. The first query is
