@@ -19,6 +19,12 @@ func _ready() -> void:
 	TarinoiRuntime.sync_failed.connect(func(r: String):
 		_status.text = "Sync failed: " + r
 	)
+	# Deferred: children are ready before their parent, and the scene that
+	# calls TarinoiRuntime.configure() is usually this node's parent.
+	_populate_initial.call_deferred()
+
+
+func _populate_initial() -> void:
 	var initial: Array = await TarinoiRuntime.get_start_cards()
 	if initial.is_empty():
 		_status.text = "Syncing Tarinoi content…"

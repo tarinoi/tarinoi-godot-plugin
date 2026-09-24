@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `2.0.0` documents.
 
 ### Fixed
+- The quickstart logged "not configured — call configure() first" on every
+  launch: `TarinoiChooseStart` queried start cards in its `_ready()`, which runs
+  before its parent's `_ready()` has configured the runtime. The first query is
+  now deferred to the end of the frame.
+- The dialogue strip's number keys reached only the first nine choices; `0` now
+  picks the tenth.
 - The entry-point list no longer offers a blank entry: the query matched the
   `start` card *template* (which carries `base_ref` too) alongside the start
   cards. Only `card` documents are listed now.

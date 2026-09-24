@@ -177,7 +177,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			TarinoiRuntime.advance()
 			get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo:
-		var idx: int = event.keycode - KEY_1
+		# 1–9 pick the first nine choices, 0 the tenth.
+		var idx := -1
+		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+			idx = event.keycode - KEY_1
+		elif event.keycode == KEY_0:
+			idx = 9
 		if idx >= 0 and idx < _choice_count and _active_choice_entry != null:
 			_select_choice(_active_choice_entry, idx)
 			get_viewport().set_input_as_handled()
