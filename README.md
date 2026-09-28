@@ -6,12 +6,12 @@ game's own code, and plays dialogue back through a small signal-based runtime.
 
 Requires the latest stable **Godot 4.x**.
 
-> **Status: early development.** Version 0.1.0. The API is not stable yet and will change
+> **Status: early development.** Version 0.2.0. The API is not stable yet and will change
 > before 1.0.
 
 ## Installation
 
-Download `tarinoi-godot-plugin-v0.1.0.zip` from the
+Download `tarinoi-godot-plugin-v0.2.0.zip` from the
 [latest release](https://github.com/tarinoi/tarinoi-godot-plugin/releases/latest),
 copy both `addons/tarinoi/` and `addons/godot-sqlite/` out of it into your
 project's `addons/` directory, then enable **Tarinoi** and **Godot SQLite**
